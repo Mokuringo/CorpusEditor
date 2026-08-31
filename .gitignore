@@ -1,0 +1,23 @@
+node_modules/
+out/
+dist/
+*.log
+vitest-output.txt
+build-output.txt
+err.txt
+out.txt
+.DS_Store
+Thumbs.db
+
+# AI 协作的工作目录（含截图、一次性探针脚本、我的笔记、改造计划）
+.workbuddy-ai/
+
+# 编辑器与本地覆盖
+.vscode/
+.idea/
+*.local
+
+# 密钥与覆盖率
+.env
+.env.*
+coverage/

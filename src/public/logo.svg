@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- CorpusEditor 应用图标：纸面底 + 三张叠放的卡片（语料库），抽出点亮的那张是当前校订的记录 -->
+  <rect width="512" height="512" rx="112" fill="#faf9f5" />
+
+  <!-- 底下两张：其余记录，越往下越淡 -->
+  <rect x="82" y="316" width="320" height="105" rx="32" fill="#4b7f52" opacity="0.28" />
+  <rect x="82" y="203" width="320" height="105" rx="32" fill="#4b7f52" opacity="0.55" />
+
+  <!-- 抽出并点亮的那张，向右错开 43 表示它正在被处理 -->
+  <rect x="125" y="90" width="320" height="105" rx="32" fill="#4b7f52" />
+  <!-- 卡片上的一道文字线，只在 128px 以上才看得见，小尺寸下自动退成纯块面 -->
+  <rect x="166" y="128" width="140" height="26" rx="13" fill="#faf9f5" opacity="0.92" />
+</svg>

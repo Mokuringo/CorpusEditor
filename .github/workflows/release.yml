@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# 创建 GitHub Release 需要 contents: write；private 仓库默认 GITHUB_TOKEN 无此权限，会 403
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Cache npm and Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ matrix.os == 'windows-latest' && '~/AppData/Local/electron/Cache' || '~/.cache/electron' }}
+            ${{ matrix.os == 'windows-latest' && '~/AppData/Local/electron-builder/Cache' || '~/.cache/electron-builder' }}
+          key: ${{ runner.os }}-deps-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Package (publish never)
+        run: npx electron-builder --publish never
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          # 只挂三个安装包，不附带 .blockmap / latest*.yml 等自动更新元数据
+          # windows 用 *Setup* 过滤，避免把 win-unpacked/ 里的主程序与 elevate.exe 也传上去
+          files: |
+            dist/**/*Setup*.exe
+            dist/**/*.dmg
+            dist/**/*.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

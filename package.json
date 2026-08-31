@@ -1,0 +1,88 @@
+{
+  "name": "corpuseditor",
+  "productName": "CorpusEditor",
+  "version": "1.0.0",
+  "description": "Desktop editor for LLM instruction-tuning datasets — read-only import, per-record editing, batch replace, resumable progress",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "dev:debug": "node scripts/dev-debug.mjs",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "electron-vite build && node tests/e2e/smoke.mjs",
+    "dist": "electron-vite build && electron-builder",
+    "gui": "electron-vite build && node tests/gui/run.mjs"
+  },
+  "keywords": [
+    "llm",
+    "dataset",
+    "annotation",
+    "electron"
+  ],
+  "author": "Mokuringo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mokuringo/CorpusEditor.git"
+  },
+  "homepage": "https://github.com/Mokuringo/CorpusEditor#readme",
+  "bugs": {
+    "url": "https://github.com/Mokuringo/CorpusEditor/issues"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.10",
+    "hyparquet": "^1.29.2",
+    "hyparquet-writer": "^0.16.8",
+    "js-yaml": "^5.4.1",
+    "lucide-react": "^1.35.0",
+    "papaparse": "^5.7.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.4.0",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
+  },
+  "build": {
+    "appId": "com.corpuseditor",
+    "productName": "CorpusEditor",
+    "files": [
+      "out/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "resources/logo-1024.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "resources/logo-256.png"
+    }
+  }
+}

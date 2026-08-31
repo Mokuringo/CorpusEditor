@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  quality:
+    name: Type check · Unit · Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Cache npm and Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: ${{ runner.os }}-deps-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+      - run: npm ci
+      - name: Full type check
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Unit tests
+        run: npm run test
+      - name: Build
+        run: npm run build
+      - name: Smoke tests
+        run: node tests/e2e/smoke.mjs
+
+  gui:
+    name: GUI (real Electron + CDP)
+    runs-on: windows-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Cache npm and Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: ${{ runner.os }}-deps-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: GUI tests (no screenshots)
+        run: node tests/gui/run.mjs --no-shots

@@ -1,0 +1,283 @@
+/* =============================================================
+   CorpusEditor · LLM 指令微调数据编辑器 —— 设计令牌
+   方案 C「苔绿与陶土」：自然系、低刺激、适合长时间校对
+   ============================================================= */
+
+:root {
+  /* 字体：界面无衬线，数据一等宽，两种角色刻意分开 */
+  --font-ui: 'Inter', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei',
+    system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Cascadia Mono', 'SFMono-Regular', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  /* 字号阶梯 */
+  --fs-micro: 10.5px;
+  --fs-caption: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-body: 13.5px;
+  --fs-md: 15px;
+  --fs-lg: 19px;
+  --fs-xl: 26px;
+
+  /* 间距 */
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 6px;
+  --sp-4: 8px;
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 20px;
+  --sp-8: 24px;
+  --sp-9: 32px;
+  --sp-10: 40px;
+
+  /* 自绘标题栏高度（macOS 下由系统标题栏决定，这里只用于 Win / Linux） */
+  --titlebar-h: 36px;
+
+  /* 圆角 */
+  --r-xs: 3px;
+  --r-sm: 5px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 18px;
+  --r-full: 999px;
+
+  --dur-fast: 110ms;
+  --dur-mid: 200ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* ---------------- 亮色：纸面 · 苔绿 · 陶土 ---------------- */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #faf9f5;
+  --bg-sunken: #f2f0e8;
+  --surface: #ffffff;
+  --surface-hover: #f5f3ec;
+  --surface-active: #eeece2;
+
+  --border: #e4e0d4;
+  --border-strong: #cec9b8;
+  --border-focus: #4b7f52;
+
+  --text: #1c1f1a;
+  --text-secondary: #565b52;
+  --text-muted: #8b8f83;
+
+  --accent: #4b7f52;
+  --accent-hover: #3e6b45;
+  --accent-soft: #e8f0e5;
+  --accent-border: #b6d2b5;
+  --accent-text: #ffffff;
+  /* 主色当「文字色」用时的加深版。--accent 直接压在 --bg-sunken / --accent-soft 上
+     只有 4.13:1 和 4.05:1，小字号过不了 WCAG AA；这个取值能到 5.3:1 以上。
+     ⚠️ --accent-text 是「主色底上的文字」，不要拿它当普通底色上的文字色。 */
+  --accent-ink: #3e6b45;
+
+  --clay: #b4603c;
+  --clay-soft: #f8e9df;
+  --clay-border: #e8c4ac;
+
+  --danger: #b0432c;
+  --danger-soft: #fbe5df;
+  --danger-border: #eebfb1;
+
+  --warn: #a2761f;
+  --warn-soft: #faf0d8;
+  --warn-border: #e3cd97;
+
+  --role-system: #b4603c;
+  --role-user: #4b7f52;
+  --role-assistant: #4a6b8a;
+  --role-tool: #7a6399;
+  --role-other: #94998c;
+
+  --role-system-soft: #f8e9df;
+  --role-user-soft: #e8f0e5;
+  --role-assistant-soft: #e5edf4;
+  --role-tool-soft: #efe9f7;
+  --role-other-soft: #f1f0ea;
+
+  --shadow-sm: 0 1px 2px rgba(28, 31, 26, 0.06);
+  --shadow-md: 0 4px 16px -4px rgba(28, 31, 26, 0.14), 0 1px 3px rgba(28, 31, 26, 0.06);
+  --shadow-lg: 0 24px 60px -16px rgba(28, 31, 26, 0.28), 0 4px 12px rgba(28, 31, 26, 0.1);
+
+  --scroll-thumb: #d6d2c4;
+  --scroll-thumb-hover: #bfbaa8;
+}
+
+/* ---------------- 暗色：林下 · 苔绿 · 陶土 ---------------- */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #12140f;
+  --bg-sunken: #0c0e0a;
+  --surface: #1a1d17;
+  --surface-hover: #22261e;
+  --surface-active: #2a2f25;
+
+  --border: #2b3025;
+  --border-strong: #3d4434;
+  --border-focus: #7fbf8b;
+
+  --text: #e8eae3;
+  --text-secondary: #a8ad9e;
+  --text-muted: #767d6d;
+
+  --accent: #7fbf8b;
+  --accent-hover: #95cd9f;
+  --accent-soft: #1d2d21;
+  --accent-border: #35543a;
+  --accent-text: #101408;
+  /* 同亮色的语义：主色当文字色用。暗色下 --accent 本身在深底上就有 9:1，无需加深 */
+  --accent-ink: #7fbf8b;
+
+  --clay: #e08a5c;
+  --clay-soft: #33200f;
+  --clay-border: #5a3a22;
+
+  --danger: #e4795f;
+  --danger-soft: #341a13;
+  --danger-border: #5c2c1e;
+
+  --warn: #d9a94b;
+  --warn-soft: #2e2512;
+  --warn-border: #56431b;
+
+  --role-system: #e08a5c;
+  --role-user: #7fbf8b;
+  --role-assistant: #87a9cc;
+  --role-tool: #a98fc9;
+  --role-other: #868d7b;
+
+  --role-system-soft: #2b1a10;
+  --role-user-soft: #1d2d21;
+  --role-assistant-soft: #182530;
+  --role-tool-soft: #241c30;
+  --role-other-soft: #21241d;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 20px -6px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 28px 70px -18px rgba(0, 0, 0, 0.75), 0 6px 16px rgba(0, 0, 0, 0.45);
+
+  --scroll-thumb: #343a2d;
+  --scroll-thumb-hover: #454d3c;
+}
+
+/* ---------------- 复位与基础排版 ---------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+  border-radius: var(--r-xs);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* 滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: var(--r-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  background-clip: content-box;
+}
+
+/* 通用小工具类 */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.label {
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
