@@ -3,6 +3,7 @@ import AutoTextarea from './AutoTextarea'
 import { deepEqual, pathKey } from '@shared/jsonpath'
 import { normalizeRole } from '@shared/inspect'
 import { useStore } from '../state/store'
+import { useT } from '../i18n'
 import type { FieldInfo } from '@shared/inspect'
 import type { DataRecord, Json } from '@shared/types'
 
@@ -35,6 +36,7 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
   const editValue = useStore((s) => s.editValue)
   const setMessages = useStore((s) => s.setMessages)
   const toast = useStore((s) => s.toast)
+  const t = useT()
 
   const { name, kind } = field
   const turns: Json[] = Array.isArray(record.data[name]) ? (record.data[name] as Json[]) : []
@@ -58,7 +60,7 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
     if (oldKey === newKey) return
     const turn = asTurn(turns[index])
     if (newKey in turn) {
-      toast(`这一轮里已经有「${newKey}」了`, 'error')
+      toast(t('pairs.dupKey', { key: newKey }), 'error')
       return
     }
     const next: Turn = {}
@@ -72,10 +74,10 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
     for (const [k, v] of Object.entries(turn)) if (k !== key) next[k] = v
     if (Object.keys(next).length === 0) {
       // 删掉最后一个键，这一轮就什么都不剩了 —— 连整轮一起删，别留下空对象
-      replaceArray(turns.filter((_, i) => i !== index), '删除对话轮次')
+      replaceArray(turns.filter((_, i) => i !== index), t('pairs.delTurnLabel'))
       return
     }
-    rewriteTurn(index, next, `删除角色 ${key}`)
+    rewriteTurn(index, next, t('pairs.delRoleLabel', { key }))
   }
 
   const addKey = (index: number) => {
@@ -83,17 +85,17 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
     const used = new Set(Object.keys(turn))
     const candidate = [...kind.keys, ...ROLE_CHOICES].find((k) => !used.has(k))
     if (!candidate) {
-      toast('这一轮里已经没有可加的角色了', 'error')
+      toast(t('pairs.noMoreRoles'), 'error')
       return
     }
-    rewriteTurn(index, { ...turn, [candidate]: '' }, `新增角色 ${candidate}`)
+    rewriteTurn(index, { ...turn, [candidate]: '' }, t('pairs.addRoleLabel', { key: candidate }))
   }
 
   const addTurn = () => {
     // 新的一轮按数据集已有的角色键铺开，空着让用户填
     const seed: Turn = {}
     for (const key of kind.keys.length > 0 ? kind.keys : [ROLE_CHOICES[1]]) seed[key] = ''
-    replaceArray([...turns, seed as Json], '新增对话轮次')
+    replaceArray([...turns, seed as Json], t('pairs.addTurnLabel'))
   }
 
   return (
@@ -112,10 +114,10 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
                 <span className="pair__spacer" />
                 <button
                   className="iconbtn"
-                  title={readOnly ? '已确认的记录不能修改' : '删除这一轮'}
-                  aria-label="删除这一轮"
+                  title={readOnly ? t('messages.readOnly') : t('pairs.delTurn')}
+                  aria-label={t('pairs.delTurn')}
                   disabled={readOnly}
-                  onClick={() => replaceArray(turns.filter((_, j) => j !== i), '删除对话轮次')}
+                  onClick={() => replaceArray(turns.filter((_, j) => j !== i), t('pairs.delTurnLabel'))}
                 >
                   <Trash2 size={13} />
                 </button>
@@ -139,7 +141,7 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
                         disabled={readOnly}
                         onChange={(e) => renameKey(i, key, e.target.value)}
                         aria-label="角色"
-                        title="改这一行的角色名（会改写字段名）"
+                        title={t('pairs.renameTitle')}
                       >
                         {!ROLE_CHOICES.includes(key) && <option value={key}>{key}</option>}
                         {ROLE_CHOICES.map((option) => (
@@ -152,8 +154,8 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
                       <span className="pairrow__spacer" />
                       <button
                         className="iconbtn"
-                        title={readOnly ? '已确认的记录不能修改' : `删除「${key}」这一行`}
-                        aria-label={`删除角色 ${key}`}
+                        title={readOnly ? t('messages.readOnly') : t('pairs.delRow', { key })}
+                        aria-label={t('pairs.delRoleLabel', { key })}
                         disabled={readOnly}
                         onClick={() => removeKey(i, key)}
                       >
@@ -179,7 +181,7 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
 
                     {modified && originalContent !== undefined && originalContent !== content && (
                       <div className="field__orig">
-                        <span className="field__orig-label">原值</span>
+                        <span className="field__orig-label">{t('field.origLabel')}</span>
                         {typeof originalContent === 'string'
                           ? originalContent
                           : JSON.stringify(originalContent, null, 2)}
@@ -192,11 +194,11 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
               <button
                 className="btn btn--sm"
                 disabled={readOnly}
-                title={readOnly ? '已确认的记录不能修改' : '给这一轮再加一个角色'}
+                title={readOnly ? t('messages.readOnly') : t('pairs.addRoleTitle')}
                 onClick={() => addKey(i)}
               >
                 <Plus size={11} />
-                加一个角色
+                {t('pairs.addRole')}
               </button>
             </div>
           </div>
@@ -207,11 +209,11 @@ export default function PairsEditor({ record, field, modifiedKeys, original, rea
         className="btn btn--sm"
         style={{ alignSelf: 'flex-start' }}
         disabled={readOnly}
-        title={readOnly ? '已确认的记录不能修改' : undefined}
+        title={readOnly ? t('messages.readOnly') : undefined}
         onClick={addTurn}
       >
         <Plus size={12} />
-        新增一轮
+        {t('pairs.addTurn')}
       </button>
     </div>
   )

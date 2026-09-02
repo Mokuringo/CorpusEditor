@@ -134,7 +134,7 @@ describe('模板分组', () => {
   it('自定义模板挂在最后的「我的模板」，不影响内置分组', () => {
     const custom: RecordTemplate[] = [{ id: 't1', name: '我的', fields: [{ name: 'x', kind: 'text' }] }]
     const groups = templateGroups(custom)
-    expect(groups[groups.length - 1]).toEqual({ label: '我的模板', items: custom })
+    expect(groups[groups.length - 1]).toEqual({ id: 'custom', label: '我的模板', items: custom })
     // 自定义模板没有 group 字段也要能归组，不能凭空消失
     expect(new Set(groups.map((g) => g.label)).size).toBe(TEMPLATE_GROUP_ORDER.length + 1)
   })

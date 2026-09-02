@@ -17,17 +17,24 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../..')
 const require = createRequire(import.meta.url)
 
-export async function seedSessions({ userData, samples }) {
+export async function seedSessions({ userData, samples, locale = 'zh-CN' }) {
   const fake = createFakeElectron({
     userData,
     fallbackDir: os.tmpdir(),
     version: '0.0.0-gui-seed'
   })
   fake.install()
+  // 每轮 seed 都新建一份 fake-electron，但 Node 会缓存 out/main/index.js，
+  // 第二轮 require 直接命中缓存、不再执行，导致本回合的 ipcMain.handle
+  // 没注册到新的 fake 上，seed 调用 source:open 就报「主进程没有注册通道」。
+  // 清掉 out/main 的模块缓存，让 main 在当前 fake 上重新注册一次。
+  for (const key of Object.keys(require.cache)) {
+    if (key.startsWith(path.join(root, 'out/main'))) delete require.cache[key]
+  }
   require(path.join(root, 'out/main/index.js'))
   await fake.settled()
 
-  const plan = (await import('./samples.mjs')).seedPlan()
+  const plan = (await import('./samples.mjs')).seedPlan(locale)
   const sessions = {}
 
   for (const [key, filePath] of Object.entries(samples.files)) {

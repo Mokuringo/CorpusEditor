@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { loadSettings, saveSettings, deleteSession, listSessions, isSessionId } from './store'
+import { isLocale, tFor, type Locale } from './i18n'
 import {
   createDataset,
   dropWorkspace,
@@ -14,28 +15,53 @@ import {
 } from './workspace'
 import type { ExportConfig, ExportFormat, Settings } from '@shared/types'
 
-const SOURCE_FILTERS = [
-  {
-    name: '所有支持的格式',
-    extensions: ['jsonl', 'ndjson', 'jl', 'json', 'csv', 'tsv', 'tab', 'yaml', 'yml', 'parquet', 'txt']
-  },
-  { name: 'JSONL / NDJSON', extensions: ['jsonl', 'ndjson', 'jl'] },
-  { name: 'JSON', extensions: ['json'] },
-  { name: 'CSV / TSV', extensions: ['csv', 'tsv', 'tab'] },
-  { name: 'YAML', extensions: ['yaml', 'yml'] },
-  { name: 'Parquet', extensions: ['parquet'] },
-  { name: '纯文本', extensions: ['txt'] },
-  { name: '所有文件', extensions: ['*'] }
-]
+/**
+ * 文件类型名只能由主进程设置（原生对话框），所以走 tFor —— 但 tFor 需要 locale，
+ * 而 locale 必须每次重新读 settings（用户切完语言立刻开对话框就要是新语言，见 plan B9）。
+ * 因此这两个原是「模块级常量」的过滤器必须改成函数，在每个 dialog handler 内部调用。
+ */
+function sourceFilters(locale: Locale): Electron.FileFilter[] {
+  return [
+    { name: tFor(locale, 'dialog.filter.allSupported'), extensions: ['jsonl', 'ndjson', 'jl', 'json', 'csv', 'tsv', 'tab', 'yaml', 'yml', 'parquet', 'txt'] },
+    { name: 'JSONL / NDJSON', extensions: ['jsonl', 'ndjson', 'jl'] },
+    { name: 'JSON', extensions: ['json'] },
+    { name: 'CSV / TSV', extensions: ['csv', 'tsv', 'tab'] },
+    { name: 'YAML', extensions: ['yaml', 'yml'] },
+    { name: 'Parquet', extensions: ['parquet'] },
+    { name: tFor(locale, 'dialog.filter.plainText'), extensions: ['txt'] },
+    { name: tFor(locale, 'dialog.filter.allFiles'), extensions: ['*'] }
+  ]
+}
 
-function exportFilters(format: ExportFormat) {
+function newDatasetFilters(locale: Locale): Electron.FileFilter[] {
+  return [
+    { name: 'JSONL', extensions: ['jsonl'] },
+    { name: tFor(locale, 'dialog.filter.jsonArray'), extensions: ['json'] },
+    { name: 'CSV', extensions: ['csv'] },
+    { name: 'TSV', extensions: ['tsv'] },
+    { name: 'YAML', extensions: ['yaml', 'yml'] }
+  ]
+}
+
+function exportFilters(locale: Locale, format: ExportFormat): Electron.FileFilter[] {
   const map: Record<ExportFormat, { name: string; extensions: string[] }> = {
     jsonl: { name: 'JSONL', extensions: ['jsonl'] },
     json: { name: 'JSON', extensions: ['json'] },
     csv: { name: 'CSV', extensions: ['csv'] },
     parquet: { name: 'Parquet', extensions: ['parquet'] }
   }
-  return [map[format], { name: '所有文件', extensions: ['*'] }]
+  return [map[format], { name: tFor(locale, 'dialog.filter.allFiles'), extensions: ['*'] }]
+}
+
+/** 启动参数 --locale=zh|en（GUI 测试用）。'zh' 归一化成 'zh-CN'；无或非法值返回 undefined。 */
+function localeArg(): Locale | undefined {
+  for (const arg of process.argv) {
+    const m = /^--locale=(.+)$/.exec(arg)
+    if (!m) continue
+    const norm = m[1] === 'zh' ? 'zh-CN' : m[1]
+    if (isLocale(norm)) return norm
+  }
+  return undefined
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -72,7 +98,7 @@ async function createWindow(): Promise<BrowserWindow> {
     height: 900,
     minWidth: 1024,
     minHeight: 640,
-    title: 'CorpusEditor · LLM 指令微调数据编辑器',
+    title: tFor(settings.locale, 'app.windowTitle'),
     icon: fs.existsSync(ICON_PATH) ? ICON_PATH : undefined,
     autoHideMenuBar: true,
     backgroundColor: WINDOW_BG[resolved] ?? WINDOW_BG.dark,
@@ -177,7 +203,8 @@ function registerIpc(): void {
   ipcMain.handle('app:info', () => ({
     version: app.getVersion(),
     platform: process.platform,
-    userData: app.getPath('userData')
+    userData: app.getPath('userData'),
+    locale: localeArg()
   }))
 
   // 自绘标题栏的窗口控制。用 fromWebContents 取发起请求的窗口，而不是全局 mainWindow，
@@ -207,16 +234,11 @@ function registerIpc(): void {
 
   ipcMain.handle('dialog:saveNewDataset', async (_e, defaultPath: string) => {
     const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+    const locale = (await loadSettings()).locale
     const options: Electron.SaveDialogOptions = {
-      title: '新建数据集',
+      title: tFor(locale, 'dialog.title.newDataset'),
       defaultPath,
-      filters: [
-        { name: 'JSONL', extensions: ['jsonl'] },
-        { name: 'JSON 数组', extensions: ['json'] },
-        { name: 'CSV', extensions: ['csv'] },
-        { name: 'TSV', extensions: ['tsv'] },
-        { name: 'YAML', extensions: ['yaml', 'yml'] }
-      ],
+      filters: newDatasetFilters(locale),
       properties: ['createDirectory', 'showOverwriteConfirmation']
     }
     const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
@@ -234,9 +256,10 @@ function registerIpc(): void {
 
   ipcMain.handle('dialog:openSource', async (_e, startDir?: string | null) => {
     const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+    const locale = (await loadSettings()).locale
     const options: Electron.OpenDialogOptions = {
-      title: '选择微调数据文件',
-      filters: SOURCE_FILTERS,
+      title: tFor(locale, 'dialog.title.openSource'),
+      filters: sourceFilters(locale),
       properties: ['openFile'],
       defaultPath: startDir ?? undefined
     }
@@ -249,10 +272,11 @@ function registerIpc(): void {
 
   ipcMain.handle('dialog:saveExport', async (_e, args: { defaultPath: string; format: ExportFormat }) => {
     const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+    const locale = (await loadSettings()).locale
     const options: Electron.SaveDialogOptions = {
-      title: '导出到',
+      title: tFor(locale, 'dialog.title.exportTo'),
       defaultPath: args.defaultPath,
-      filters: exportFilters(args.format),
+      filters: exportFilters(locale, args.format),
       properties: ['createDirectory', 'showOverwriteConfirmation']
     }
     const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)

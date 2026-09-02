@@ -33,8 +33,25 @@ export function templateToData(fields: TemplateField[]): Record<string, Json> {
 }
 
 export interface TemplateGroup {
+  /** Stable, locale-independent id used for i18n (template.group.<id>). */
+  id: string
+  /** Raw zh-CN label — kept for backward-compat with unit tests. */
   label: string
   items: RecordTemplate[]
+}
+
+/**
+ * 分组的中文标签（来自 TEMPLATE_GROUP_ORDER）到稳定 id 的映射。
+ * 渲染处用 `t('template.group.' + id)` 翻译，避免英文 UI 下下拉还显示中文。
+ */
+const GROUP_ID_BY_LABEL: Record<string, string> = {
+  '通用': 'general',
+  '指令微调 · SFT': 'sft',
+  '多轮对话': 'chat',
+  '偏好对比 · DPO': 'dpo',
+  '问答': 'qa',
+  '其它': 'other',
+  '我的模板': 'custom'
 }
 
 /**
@@ -45,12 +62,12 @@ export function templateGroups(custom: RecordTemplate[] = []): TemplateGroup[] {
   const groups: TemplateGroup[] = []
   for (const label of TEMPLATE_GROUP_ORDER) {
     const items = BUILTIN_TEMPLATES.filter((t) => (t.group ?? '') === label)
-    if (items.length > 0) groups.push({ label, items })
+    if (items.length > 0) groups.push({ id: GROUP_ID_BY_LABEL[label] ?? 'other', label, items })
   }
   // 内置模板若漏标 group，兜底塞进「其它」，否则它们会从下拉里凭空消失
   const orphan = BUILTIN_TEMPLATES.filter((t) => !TEMPLATE_GROUP_ORDER.includes(t.group ?? ''))
-  if (orphan.length > 0) groups.push({ label: '其它', items: orphan })
-  if (custom.length > 0) groups.push({ label: '我的模板', items: custom })
+  if (orphan.length > 0) groups.push({ id: 'other', label: '其它', items: orphan })
+  if (custom.length > 0) groups.push({ id: 'custom', label: '我的模板', items: custom })
   return groups
 }
 

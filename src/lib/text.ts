@@ -1,4 +1,7 @@
+import type { Locale, TFunc, Vars } from '@shared/locales'
 import type { Json } from '@shared/types'
+
+const DEFAULT_LOCALE: Locale = 'zh-CN'
 
 const SUMMARY_PRIORITY = [
   'instruction',
@@ -33,7 +36,7 @@ function firstString(node: unknown, depth = 0): string {
 }
 
 /** 列表里展示记录摘要：优先取常见提问/指令字段，否则取第一个字符串。 */
-export function pickSummary(data: Record<string, Json>): string {
+export function pickSummary(data: Record<string, Json>, tr?: TFunc): string {
   for (const key of SUMMARY_PRIORITY) {
     const value = data[key]
     if (typeof value === 'string' && value.trim()) return value
@@ -49,7 +52,7 @@ export function pickSummary(data: Record<string, Json>): string {
       if (nested) return nested
     }
   }
-  return '（空记录）'
+  return tr ? tr('record.empty') : '（空记录）'
 }
 
 function appendStrings(node: unknown, out: string[]): void {
@@ -75,8 +78,9 @@ export function searchBlob(data: Record<string, Json>): string {
   return parts.join(' ').slice(0, INDEX_LIMIT).toLowerCase()
 }
 
-export function formatCount(n: number): string {
-  return n.toLocaleString('zh-CN')
+/** 千分位。整数在 zh-CN 与 en-US 下输出一致（都是 1,200），小数与货币才看得出差别。 */
+export function formatCount(n: number, locale: Locale = DEFAULT_LOCALE): string {
+  return n.toLocaleString(locale)
 }
 
 export function formatBytes(n: number): string {
@@ -91,11 +95,22 @@ export function formatTime(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export function relativeTime(ts: number): string {
+/** 相对时间。四个分支都带数量插值，必须走翻译而不是拼字符串。 */
+export function relativeTime(ts: number, tr?: TFunc): string {
   const diff = Date.now() - ts
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)} 天前`
+  const at = (count: number): Vars => ({ count })
+  if (diff < 60_000) return tr ? tr('time.justNow') : '刚刚'
+  if (diff < 3_600_000) {
+    const count = Math.floor(diff / 60_000)
+    return tr ? tr('time.minutesAgo', at(count)) : `${count} 分钟前`
+  }
+  if (diff < 86_400_000) {
+    const count = Math.floor(diff / 3_600_000)
+    return tr ? tr('time.hoursAgo', at(count)) : `${count} 小时前`
+  }
+  if (diff < 7 * 86_400_000) {
+    const count = Math.floor(diff / 86_400_000)
+    return tr ? tr('time.daysAgo', at(count)) : `${count} 天前`
+  }
   return formatTime(ts)
 }

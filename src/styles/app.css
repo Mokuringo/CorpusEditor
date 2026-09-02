@@ -355,6 +355,40 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* 语言切换：单按钮「文 / A」字形图标（文=中文，A=英文），当前语言高亮。
+   ⚠️ 必须是横向 inline-flex：.iconbtn 是 inline-grid 且没写显式列，
+   三个 <span> 会被塞进同一列竖排堆叠（用户看到的就是「纵向」）。 */
+.langtoggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: auto;
+  min-width: 38px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+.langtoggle:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-focus);
+  color: var(--text);
+}
+.langtoggle:active:not(:disabled) {
+  background: var(--surface-active);
+}
+.langtoggle .is-on { color: var(--accent); }
+.langtoggle .is-off { color: var(--text-muted); }
+.langtoggle__sep { color: var(--text-muted); margin: 0 1px; }
+
 /* ---------------- 输入控件 ---------------- */
 .input,
 .select,

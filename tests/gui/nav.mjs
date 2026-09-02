@@ -87,54 +87,59 @@ export async function switchTab(ctx, label, { expectCount } = {}) {
   await sleep(250)
 }
 
-/** 确保处于亮色主题（角色色带的断言钉的是亮色令牌值） */
+/** 确保处于亮色主题（角色色带的断言钉的是亮色令牌值）。
+ *  主题分段控件顺序固定为 亮/暗/跟随系统，第一个按钮永远是对应的亮色档，
+ *  所以按索引点、不依赖文案，中英文套件都通用。 */
 export async function ensureLightTheme(ctx) {
   const { evalJs, sleep } = ctx
   const theme = await evalJs(`return document.documentElement.dataset.theme`)
   if (theme === 'light') return
-  await evalJs(`document.querySelector('button[aria-label="亮色"]').click(); return true`)
+  await evalJs(`document.querySelector('.segmented button').click(); return true`)
   await sleep(600)
 }
 
-/** 回到首页（如果正开着数据集就先关掉） */
+/** 回到首页（如果正开着数据集就先关掉）。
+ *  关文件按钮用稳定的 data-testid，不依赖「关闭文件」这类文案。 */
 export async function goHome(ctx) {
   const { evalJs, waitFor, sleep } = ctx
   if (await evalJs(`return !!document.querySelector('.home')`)) return
   await evalJs(
-    `[...document.querySelectorAll('button')].find(b => b.title === '关闭文件')?.click()
+    `[...document.querySelectorAll('button[data-testid="close-file"]')].pop()?.click()
      return true`
   )
   await waitFor(`!!document.querySelector('.home')`, { label: '回到首页' })
   await sleep(400)
 }
 
-/** 展开「继续上次」（会话超过 3 份时才有这个按钮） */
+/**
+ * 展开「继续上次」（会话超过 3 份时才有这个按钮）。
+ * 按状态判断：没有 .recent-row--all 就点一下切换按钮，不依赖「查看全部」文案。
+ */
 export async function expandRecent(ctx) {
-  const { evalJs, sleep } = ctx
-  const has = await evalJs(
-    `return [...document.querySelectorAll('.home__recent-head button')]
-       .some(b => /查看全部/.test(b.textContent || ''))`
-  )
-  if (!has) return
-  await ctx.clickText('查看全部')
+  const { evalJs, waitFor, sleep } = ctx
+  const need = await evalJs(`return !document.querySelector('.recent-row--all')
+    && !!document.querySelector('.home__recent-head button')`)
+  if (!need) return
+  await evalJs(`document.querySelector('.home__recent-head button').click(); return true`)
+  await waitFor(`!!document.querySelector('.recent-row--all')`, { label: '展开最近列表', timeout: 5000 })
   await sleep(400)
 }
 
-/** 收起「继续上次」 */
+/** 收起「继续上次」：有 .recent-row--all 就点一下切换按钮。 */
 export async function collapseRecent(ctx) {
-  const { evalJs, sleep } = ctx
-  const has = await evalJs(
-    `return [...document.querySelectorAll('.home__recent-head button')]
-       .some(b => /收起/.test(b.textContent || ''))`
-  )
-  if (!has) return
-  await ctx.clickText('收起')
+  const { evalJs, waitFor, sleep } = ctx
+  const need = await evalJs(`return !!document.querySelector('.recent-row--all')
+    && !!document.querySelector('.home__recent-head button')`)
+  if (!need) return
+  await evalJs(`document.querySelector('.home__recent-head button').click(); return true`)
+  await waitFor(`!document.querySelector('.recent-row--all')`, { label: '收起最近列表', timeout: 5000 })
   await sleep(400)
 }
 
 /**
  * 打开指定数据集。走首页「继续上次」的「继续」按钮 ——
  * 它直接调 openFile(session.sourcePath)，不经过系统对话框。
+ * 继续按钮用 .rcard__actions 里非 iconbtn 的那个（Resume 主按钮），不依赖文案。
  */
 export async function enterDataset(ctx, keyword) {
   const { evalJs, waitFor, sleep } = ctx
@@ -144,7 +149,7 @@ export async function enterDataset(ctx, keyword) {
     `const card = [...document.querySelectorAll('.rcard')]
        .find(c => new RegExp(${JSON.stringify(keyword)}).test(c.textContent || ''))
      if (!card) return false
-     const btn = [...card.querySelectorAll('button')].find(b => /继续/.test(b.textContent || ''))
+     const btn = card.querySelector('.rcard__actions button:not(.iconbtn)')
      if (!btn) return false
      btn.click()
      return true`
@@ -162,6 +167,7 @@ export async function enterDataset(ctx, keyword) {
   )
   // 会话文件会记住上次停留的页签。上一个用例若是中途报错留在「已确认」上，
   // 这边的筛选就被带过来了 —— 每个用例都从「全部」起步，失败才不会串场。
-  await switchTab(ctx, '全部')
+  // 「全部」永远是第一个状态页签，按索引点，不依赖文案。
+  await evalJs(`const b = document.querySelector('.filter-tab'); if (b) b.click(); return true`)
   await sleep(400) // 等虚拟化列表与动画稳定
 }

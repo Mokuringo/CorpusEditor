@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { useT } from '../i18n'
 
 interface ModalProps {
   title: string
@@ -11,6 +12,7 @@ interface ModalProps {
 }
 
 export default function Modal({ title, subtitle, wide, onClose, footer, children }: ModalProps) {
+  const t = useT()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -30,7 +32,7 @@ export default function Modal({ title, subtitle, wide, onClose, footer, children
             <h2 className="modal__title">{title}</h2>
             {subtitle && <p className="modal__sub">{subtitle}</p>}
           </div>
-          <button className="iconbtn" onClick={onClose} aria-label="关闭">
+          <button className="iconbtn" onClick={onClose} aria-label={t('modal.close')}>
             <X size={15} />
           </button>
         </div>

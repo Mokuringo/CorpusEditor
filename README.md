@@ -32,7 +32,7 @@ Fine-tuning datasets are often large and messy. You need to proofread records, r
 
 ## Screenshots
 
-![Core editing page](docs/editor.png)
+![Core editing page](docs/editor-en.png)
 
 *The core editing page: a virtualized record list, per-field editing, and role-colored message bands.*
 

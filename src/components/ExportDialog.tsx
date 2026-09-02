@@ -3,6 +3,8 @@ import { ArrowDown, ArrowUp, ExternalLink, GripVertical, Plus, RotateCcw, X } fr
 import Modal from './Modal'
 import { api } from '../lib/api'
 import { formatBytes, formatCount } from '../lib/text'
+import { formatCode } from '../lib/messages'
+import { useT, useLocale } from '../i18n'
 import { buildDefaultExportConfig, useStore } from '../state/store'
 import {
   collectAvailablePaths,
@@ -16,21 +18,9 @@ import { pathKey } from '@shared/jsonpath'
 import { recordStatus } from '@shared/patch'
 import type { ExportColumn, ExportFormat, ExportScope, Path } from '@shared/types'
 
-const FORMATS: Array<{ value: ExportFormat; label: string; hint: string }> = [
-  { value: 'jsonl', label: 'JSONL', hint: '一行一条，训练脚本最常用' },
-  { value: 'json', label: 'JSON 数组', hint: '整体一个数组' },
-  { value: 'csv', label: 'CSV', hint: '表格，嵌套结构会转成字符串' },
-  { value: 'parquet', label: 'Parquet', hint: '列式存储，嵌套结构会转成字符串' }
-]
-
-const SCOPES: Array<{ value: ExportScope; label: string }> = [
-  { value: 'all', label: '全部记录' },
-  { value: 'modified', label: '仅已修改' },
-  { value: 'confirmed', label: '仅已确认' },
-  { value: 'filtered', label: '当前筛选结果' }
-]
-
 export default function ExportDialog() {
+  const t = useT()
+  const locale = useLocale()
   const open = useStore((s) => s.exportOpen)
   const close = useStore((s) => s.closeExport)
   const dataset = useStore((s) => s.dataset)
@@ -161,7 +151,7 @@ export default function ExportDialog() {
 
   const doExport = async () => {
     if (validation) {
-      toast(validation, 'error')
+      toast(formatCode(validation, t, locale), 'error')
       return
     }
     const destPath = await api.saveExportDialog(suggestPath(), config.format)
@@ -173,7 +163,10 @@ export default function ExportDialog() {
       const outcome = await runExport(config, destPath, config.scope)
       if (outcome) {
         setResult({ path: outcome.destPath, count: outcome.recordCount, bytes: outcome.bytes })
-        toast(`已导出 ${formatCount(outcome.recordCount)} 条到 ${outcome.destPath}`, 'success')
+        toast(
+          t('export.done', { n: formatCount(outcome.recordCount, locale), path: outcome.destPath }),
+          'success'
+        )
       }
     } finally {
       setBusy(false)
@@ -182,32 +175,51 @@ export default function ExportDialog() {
 
   const isFlat = config.format === 'csv' || config.format === 'parquet'
 
+  const formats: Array<{ value: ExportFormat; label: string; hint: string }> = [
+    { value: 'jsonl', label: t('export.format.jsonl'), hint: t('export.format.jsonl.hint') },
+    { value: 'json', label: t('export.format.json'), hint: t('export.format.json.hint') },
+    { value: 'csv', label: t('export.format.csv'), hint: t('export.format.csv.hint') },
+    { value: 'parquet', label: t('export.format.parquet'), hint: t('export.format.parquet.hint') }
+  ]
+
+  const scopes: Array<{ value: ExportScope; label: string }> = [
+    { value: 'all', label: t('export.scope.all') },
+    { value: 'modified', label: t('export.scope.modified') },
+    { value: 'confirmed', label: t('export.scope.confirmed') },
+    { value: 'filtered', label: t('export.scope.filtered') }
+  ]
+
   return (
     <Modal
       wide
-      title="导出数据"
-      subtitle="改动会写入新文件，原文件保持只读不变"
+      title={t('export.title')}
+      subtitle={t('export.subtitle')}
       onClose={close}
       footer={
         <>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-            {validation ? validation : `将导出 ${formatCount(scopeCount)} 条记录、${config.columns.filter((c) => c.enabled).length} 列`}
+            {validation
+              ? formatCode(validation, t, locale)
+              : t('export.preview', {
+                  n: formatCount(scopeCount, locale),
+                  cols: config.columns.filter((c) => c.enabled).length
+                })}
           </span>
           <span style={{ flex: 1 }} />
           <button className="btn" onClick={close}>
-            关闭
+            {t('modal.close')}
           </button>
           <button className="btn btn--primary" onClick={doExport} disabled={Boolean(validation) || busy}>
-            {busy ? '正在导出…' : '选择路径并导出'}
+            {busy ? t('export.busy') : t('export.choose')}
           </button>
         </>
       }
     >
       <div className="form-grid">
-        <span className="form-grid__label">格式</span>
+        <span className="form-grid__label">{t('export.format')}</span>
         <div className="form-row">
           <div className="segmented">
-            {FORMATS.map((f) => (
+            {formats.map((f) => (
               <button
                 key={f.value}
                 className={`segmented__item${config.format === f.value ? ' segmented__item--on' : ''}`}
@@ -219,23 +231,23 @@ export default function ExportDialog() {
             ))}
           </div>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-            {FORMATS.find((f) => f.value === config.format)?.hint}
+            {formats.find((f) => f.value === config.format)?.hint}
           </span>
         </div>
 
-        <span className="form-grid__label">范围</span>
+        <span className="form-grid__label">{t('export.scope')}</span>
         <div className="form-row">
           <div className="segmented">
-            {SCOPES.map((s) => (
+            {scopes.map((s) => (
               <button
                 key={s.value}
                 className={`segmented__item${config.scope === s.value ? ' segmented__item--on' : ''}`}
                 onClick={() => patch({ scope: s.value })}
               >
                 {s.label}
-                {s.value === 'modified' ? ` (${formatCount(modifiedCount)})` : ''}
-                {s.value === 'confirmed' ? ` (${formatCount(confirmedCount)})` : ''}
-                {s.value === 'filtered' ? ` (${formatCount(filteredCount)})` : ''}
+                {s.value === 'modified' ? ` (${formatCount(modifiedCount, locale)})` : ''}
+                {s.value === 'confirmed' ? ` (${formatCount(confirmedCount, locale)})` : ''}
+                {s.value === 'filtered' ? ` (${formatCount(filteredCount, locale)})` : ''}
               </button>
             ))}
           </div>
@@ -243,12 +255,12 @@ export default function ExportDialog() {
 
         {config.format === 'json' && (
           <>
-            <span className="form-grid__label">缩进</span>
+            <span className="form-grid__label">{t('export.indent')}</span>
             <div className="segmented">
               {[
-                { value: null, label: '紧凑' },
-                { value: 2, label: '2 空格' },
-                { value: 4, label: '4 空格' }
+                { value: null, label: t('export.indent.compact') },
+                { value: 2, label: t('export.indent.2') },
+                { value: 4, label: t('export.indent.4') }
               ].map((option) => (
                 <button
                   key={String(option.value)}
@@ -264,12 +276,12 @@ export default function ExportDialog() {
 
         {config.format === 'csv' && (
           <>
-            <span className="form-grid__label">分隔符</span>
+            <span className="form-grid__label">{t('export.delimiter')}</span>
             <div className="segmented">
               {[
-                { value: ',', label: '逗号 ,' },
-                { value: ';', label: '分号 ;' },
-                { value: '\t', label: '制表符' }
+                { value: ',', label: t('export.delimiter.comma') },
+                { value: ';', label: t('export.delimiter.semicolon') },
+                { value: '\t', label: t('export.delimiter.tab') }
               ].map((option) => (
                 <button
                   key={option.value}
@@ -285,11 +297,11 @@ export default function ExportDialog() {
 
         {isFlat && (
           <>
-            <span className="form-grid__label">嵌套结构</span>
+            <span className="form-grid__label">{t('export.nested')}</span>
             <div className="segmented">
               {[
-                { value: null, label: '紧凑 JSON' },
-                { value: 2, label: '缩进 2 空格' }
+                { value: null, label: t('export.nested.compact') },
+                { value: 2, label: t('export.nested.2') }
               ].map((option) => (
                 <button
                   key={String(option.value)}
@@ -307,29 +319,29 @@ export default function ExportDialog() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-4)' }}>
           <h3 className="section-title" style={{ flex: 1 }}>
-            字段映射
+            {t('export.fields')}
           </h3>
           <label className="checkbox">
             <input type="checkbox" checked={config.includeIndex} onChange={(e) => toggleIndex(e.target.checked)} />
-            附带原始行号列
+            {t('export.includeIndex')}
           </label>
           <button className="btn btn--sm" onClick={() => addColumn(null)}>
             <Plus size={11} />
-            添加列
+            {t('export.addCol')}
           </button>
           <button className="btn btn--sm" onClick={resetColumns}>
             <RotateCcw size={11} />
-            重置
+            {t('export.reset')}
           </button>
         </div>
 
         <div className="collist">
           <div className="collist__head">
             <span />
-            <span>输出列名</span>
-            <span>数据来源</span>
-            <span>排序</span>
-            <span>启用</span>
+            <span>{t('export.colname')}</span>
+            <span>{t('export.colsrc')}</span>
+            <span>{t('export.colsort')}</span>
+            <span>{t('export.colenable')}</span>
           </div>
           {config.columns.map((column) => (
             <div
@@ -359,7 +371,7 @@ export default function ExportDialog() {
                 setOverId(null)
               }}
             >
-              <span className="colrow__handle" title="拖动排序">
+              <span className="colrow__handle" title={t('export.drag')}>
                 <GripVertical size={13} />
               </span>
               <input
@@ -370,12 +382,12 @@ export default function ExportDialog() {
               />
               <div className="pathcell">
                 <span className={`pathcell__value${column.path ? '' : ' pathcell__value--empty'}`}>
-                  {column.path ? defaultPathLabel(column.path) : '空列（导出为 null）'}
+                  {column.path ? defaultPathLabel(column.path) : t('export.emptyCol')}
                 </span>
                 <button
                   className="iconbtn"
                   style={{ width: 22, height: 22 }}
-                  title="选择取值路径"
+                  title={t('export.pickPath')}
                   onClick={() => setPicking(picking === column.id ? null : column.id)}
                 >
                   <ExternalLink size={11} />
@@ -384,7 +396,7 @@ export default function ExportDialog() {
                   <button
                     className="iconbtn"
                     style={{ width: 22, height: 22 }}
-                    title="清空路径"
+                    title={t('export.clearPath')}
                     onClick={() => updateColumn(column.id, { path: null })}
                   >
                     <X size={11} />
@@ -395,7 +407,7 @@ export default function ExportDialog() {
                 <button
                   className="iconbtn"
                   style={{ width: 20, height: 20 }}
-                  title="上移"
+                  title={t('export.moveUp')}
                   onClick={() => moveColumn(column.id, -1)}
                 >
                   <ArrowUp size={11} />
@@ -403,7 +415,7 @@ export default function ExportDialog() {
                 <button
                   className="iconbtn"
                   style={{ width: 20, height: 20 }}
-                  title="下移"
+                  title={t('export.moveDown')}
                   onClick={() => moveColumn(column.id, 1)}
                 >
                   <ArrowDown size={11} />
@@ -415,13 +427,13 @@ export default function ExportDialog() {
                   type="checkbox"
                   checked={column.enabled}
                   onChange={(e) => updateColumn(column.id, { enabled: e.target.checked })}
-                  aria-label="启用这一列"
+                  aria-label={t('export.colenable')}
                 />
                 {column.label !== INDEX_COLUMN && (
                   <button
                     className="iconbtn"
                     style={{ width: 20, height: 20 }}
-                    title="删除这一列"
+                    title={t('export.delCol')}
                     onClick={() => removeColumn(column.id)}
                   >
                     <X size={11} />
@@ -435,10 +447,10 @@ export default function ExportDialog() {
         {picking && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
-              <span className="label">选择取值路径</span>
+              <span className="label">{t('export.pickPath')}</span>
               <span style={{ flex: 1 }} />
               <button className="btn btn--sm" onClick={() => setPicking(null)}>
-                收起
+                {t('export.collapse')}
               </button>
             </div>
             <div className="pathpicker">
@@ -469,12 +481,16 @@ export default function ExportDialog() {
       {result && (
         <div className="result-box">
           <div className="result-box__head">
-            已导出 {formatCount(result.count)} 条 · {formatBytes(result.bytes)}
+            {t('export.result', { count: formatCount(result.count, locale), bytes: formatBytes(result.bytes) })}
           </div>
           <div className="sample">
             <span className="sample__path">{result.path}</span>
-            <button className="btn btn--sm" style={{ alignSelf: 'flex-start' }} onClick={() => void api.showItemInFolder(result.path)}>
-              在文件夹中显示
+            <button
+              className="btn btn--sm"
+              style={{ alignSelf: 'flex-start' }}
+              onClick={() => void api.showItemInFolder(result.path)}
+            >
+              {t('export.showInFolder')}
             </button>
           </div>
         </div>

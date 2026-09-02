@@ -1,19 +1,20 @@
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { useStore } from '../state/store'
+import { useT } from '../i18n'
 import type { ThemeMode } from '../state/theme'
 
-const OPTIONS: Array<{ mode: ThemeMode; icon: typeof Sun; label: string }> = [
-  { mode: 'light', icon: Sun, label: '亮色' },
-  { mode: 'dark', icon: Moon, label: '暗色' },
-  { mode: 'system', icon: Monitor, label: '跟随系统' }
-]
-
 export default function ThemeToggle() {
+  const t = useT()
   const theme = useStore((s) => s.theme)
   const setTheme = useStore((s) => s.setTheme)
+  const options: Array<{ mode: ThemeMode; icon: typeof Sun; label: string }> = [
+    { mode: 'light', icon: Sun, label: t('theme.light') },
+    { mode: 'dark', icon: Moon, label: t('theme.dark') },
+    { mode: 'system', icon: Monitor, label: t('theme.system') }
+  ]
   return (
-    <div className="segmented" role="group" aria-label="主题">
-      {OPTIONS.map(({ mode, icon: Icon, label }) => (
+    <div className="segmented" role="group" aria-label={t('theme.group')}>
+      {options.map(({ mode, icon: Icon, label }) => (
         <button
           key={mode}
           type="button"

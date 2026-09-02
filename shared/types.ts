@@ -1,3 +1,6 @@
+import type { Warning } from './errors'
+import type { Locale } from './locales'
+
 /** JSON 值的联合类型：可安全通过 IPC 与 JSON.stringify 传输的数据。 */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 
@@ -261,7 +264,8 @@ export interface RecordTemplate {
 
 export interface Settings {
   theme: 'light' | 'dark' | 'system'
-  locale: 'zh-CN'
+  /** 界面语言。主进程读它决定原生对话框标题的语言，所以它就是真相，localStorage 只是首屏缓存。 */
+  locale: Locale
   lastOpenDir: string | null
   recentSessionIds: string[]
   /** 用户自定义的新建记录模板。内置模板不落盘，避免升级后新旧两份打架。 */
@@ -273,7 +277,7 @@ export interface OpenResult {
   source: SourceMeta
   recordCount: number
   fieldOrder: string[]
-  warnings: string[]
+  warnings: Warning[]
   /** 恢复会话时回填的编辑与删除状态。 */
   edits: PatchMap
   deleted: number[]

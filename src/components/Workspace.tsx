@@ -5,10 +5,14 @@ import RecordList from './RecordList'
 import RecordEditor from './RecordEditor'
 import StatusBar from './StatusBar'
 import NewRecordDialog from './NewRecordDialog'
+import { useT, useLocale } from '../i18n'
+import { formatWarning } from '../lib/messages'
 import { useStore } from '../state/store'
 import { confirmAndAdvance, stepQueue } from '../state/visible'
 
 export default function Workspace() {
+  const t = useT()
+  const locale = useLocale()
   const dataset = useStore((s) => s.dataset)
   const undo = useStore((s) => s.undo)
   const redo = useStore((s) => s.redo)
@@ -68,12 +72,10 @@ export default function Workspace() {
       {dataset.sourceChanged && (
         <div className="banner banner--danger">
           <AlertTriangle size={13} />
-          <span className="banner__text">
-            源文件在打开之后被改动过。已尽量套用保存的改动，位置对不上的部分会被忽略。
-          </span>
+          <span className="banner__text">{t('workspace.sourceChanged')}</span>
           <button className="btn btn--sm" onClick={() => void openFile(dataset.source.path, true)}>
             <RefreshCw size={11} />
-            丢弃改动重新开始
+            {t('workspace.restart')}
           </button>
         </div>
       )}
@@ -81,11 +83,11 @@ export default function Workspace() {
       {showWarnings && (
         <div className="banner">
           <AlertTriangle size={13} />
-          <span className="banner__text">{dataset.warnings.join('　')}</span>
+          <span className="banner__text">{dataset.warnings.map((w) => formatWarning(w, t, locale)).join('　')}</span>
           <button
             className="iconbtn"
             onClick={() => useStore.setState({ warningsDismissed: true })}
-            aria-label="忽略"
+            aria-label={t('workspace.dismiss')}
           >
             <X size={13} />
           </button>
@@ -102,7 +104,7 @@ export default function Workspace() {
       {dataset.recordCount === 0 && (
         <div className="empty" style={{ padding: 'var(--sp-8)' }}>
           <FolderOpen size={18} />
-          <span>这个文件里没有解析到任何记录</span>
+          <span>{t('workspace.empty')}</span>
         </div>
       )}
 

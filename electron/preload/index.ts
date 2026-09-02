@@ -24,7 +24,14 @@ export interface WindowState {
 }
 
 const corpuseditor = {
-  info: () => ipcRenderer.invoke('app:info') as Promise<{ version: string; platform: string; userData: string }>,
+  info: () =>
+    ipcRenderer.invoke('app:info') as Promise<{
+      version: string
+      platform: string
+      userData: string
+      /** GUI 测试用：启动参数 --locale 的值（无则缺省）。 */
+      locale?: string
+    }>,
 
   windowMinimize: () => ipcRenderer.invoke('window:minimize') as Promise<void>,
   windowMaximize: () => ipcRenderer.invoke('window:maximize') as Promise<boolean>,

@@ -31,7 +31,7 @@ CorpusEditor 是一款面向 **LLM 指令微调数据集**（SFT / DPO）的桌�
 
 ## 界面导览
 
-![核心编辑页](docs/editor.png)
+![核心编辑页](docs/editor-zh.png)
 
 *核心编辑页：虚拟化的记录列表、逐字段编辑、按角色着色的消息色带。*
 

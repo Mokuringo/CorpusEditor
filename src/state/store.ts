@@ -3,6 +3,9 @@ import { api } from '../lib/api'
 import { clearOriginals, getOriginalRecord } from './originals'
 import { resetSearchIndex } from './search'
 import { applyTheme, loadStoredTheme, resolveTheme, storeTheme } from './theme'
+import { applyLocale, loadStoredLocale, resolveInitialLocale, storeLocale } from './locale'
+import { t, setLocale as setI18nLocale } from '../i18n'
+import { formatCount } from '../lib/text'
 import { flushDrafts } from '../lib/dom'
 import {
   applyEdits,
@@ -38,6 +41,8 @@ import type {
   ViewState
 } from '@shared/types'
 import type { ResolvedTheme, ThemeMode } from './theme'
+import type { Locale } from '@shared/locales'
+import type { Warning } from '@shared/errors'
 
 const HISTORY_LIMIT = 200
 const SAVE_DEBOUNCE = 600
@@ -46,7 +51,7 @@ export interface DatasetInfo {
   id: string
   source: SourceMeta
   fieldOrder: string[]
-  warnings: string[]
+  warnings: Warning[]
   recordCount: number
   resumed: boolean
   sourceChanged: boolean
@@ -91,6 +96,7 @@ interface AppState {
   saveState: SaveState
   lastSavedAt: number | null
   exportConfig: ExportConfig | null
+  locale: Locale
 
   replaceOpen: boolean
   exportOpen: boolean
@@ -103,6 +109,7 @@ interface AppState {
 interface AppActions {
   init: () => Promise<void>
   setTheme: (mode: ThemeMode) => void
+  setLocale: (locale: Locale) => Promise<void>
   toast: (message: string, kind?: Toast['kind']) => void
   dismissToast: (id: number) => void
 
@@ -448,6 +455,7 @@ export const useStore = create<Store>((set, get) => {
     saveState: 'idle',
     lastSavedAt: null,
     exportConfig: null,
+    locale: loadStoredLocale(),
 
     replaceOpen: false,
     exportOpen: false,
@@ -456,6 +464,12 @@ export const useStore = create<Store>((set, get) => {
     warningsDismissed: false,
 
     async init() {
+      // 先按 localStorage 缓存把语言定下来，免得等 IPC 回来之前先闪一帧别的语言
+      const boot = loadStoredLocale()
+      set({ locale: boot })
+      setI18nLocale(boot)
+      applyLocale(boot)
+
       const mode = get().theme
       set({ resolvedTheme: resolveTheme(mode) })
       applyTheme(resolveTheme(mode))
@@ -479,12 +493,27 @@ export const useStore = create<Store>((set, get) => {
         })()
       })
 
+      // 启动参数 --locale 是给 GUI 测试切语种用的，普通用户碰不到
+      let paramLocale: unknown = null
+      try {
+        paramLocale = (await api.info()).locale
+      } catch {
+        // 拿不到就按缓存 / 系统语言走
+      }
+
       try {
         const settings = await api.getSettings()
         set({ settings })
         if (settings?.theme && settings.theme !== get().theme) {
           set({ theme: settings.theme, resolvedTheme: resolveTheme(settings.theme) })
           applyTheme(resolveTheme(settings.theme))
+        }
+        // Settings 是从主进程读回来的真相，覆盖 localStorage 缓存（与 theme 同一套优先级）
+        const locale = resolveInitialLocale(paramLocale, settings?.locale)
+        if (locale !== get().locale) {
+          set({ locale })
+          setI18nLocale(locale)
+          applyLocale(locale)
         }
       } catch {
         // 设置读取失败不影响使用
@@ -504,6 +533,20 @@ export const useStore = create<Store>((set, get) => {
       const next: Settings = { ...base, theme: mode }
       set({ settings: next })
       void api.setSettings(next)
+    },
+
+    async setLocale(locale) {
+      storeLocale(locale)
+      set({ locale })
+      setI18nLocale(locale)
+      applyLocale(locale)
+      const base: Settings = get().settings ?? defaultSettings()
+      const next: Settings = { ...base, locale }
+      set({ settings: next })
+      // 这里要 await：主线程不等的话，用户切完语言立刻点「打开文件」，
+      // 主进程读到的可能还是旧语言，弹出的原生对话框标题就还是中文。
+      // 切语言不是高频操作，等一次 IPC 用户感知不到。
+      await api.setSettings(next)
     },
 
     saveTemplates(templates) {
@@ -533,7 +576,7 @@ export const useStore = create<Store>((set, get) => {
     },
 
     async openFile(filePath, fresh = false) {
-      set({ busy: { label: '正在读取文件…', progress: 0 }, saveState: 'idle', warningsDismissed: false })
+      set({ busy: { label: t('store.busy.opening'), progress: 0 }, saveState: 'idle', warningsDismissed: false })
       const chunks: DataRecord[] = []
       let total = 0
       const off = api.onDatasetChunk((chunk) => {
@@ -541,7 +584,10 @@ export const useStore = create<Store>((set, get) => {
         total = chunk.total
         set({
           busy: {
-            label: `正在载入 ${chunks.length.toLocaleString('zh-CN')} / ${total.toLocaleString('zh-CN')} 条`,
+            label: t('store.busy.loading', {
+              loaded: formatCount(chunks.length, get().locale),
+              total: formatCount(total, get().locale)
+            }),
             progress: total ? chunks.length / total : 0
           }
         })
@@ -594,16 +640,17 @@ export const useStore = create<Store>((set, get) => {
         await get().refreshSessions()
         if (result.resumed) {
           const modified = Object.keys(result.edits ?? {}).length
-          const parts = [`${records.length.toLocaleString('zh-CN')} 条记录`]
-          if (modified > 0) parts.push(`${modified.toLocaleString('zh-CN')} 条改动`)
-          if (resumedAdded > 0) parts.push(`${resumedAdded.toLocaleString('zh-CN')} 条新建`)
-          if (resumedConfirmed > 0) parts.push(`${resumedConfirmed.toLocaleString('zh-CN')} 条已确认`)
-          get().toast(`已恢复上次进度：${parts.join('，')}`, 'success')
+          const locale = get().locale
+          const parts = [t('store.resume.records', { n: formatCount(records.length, locale) })]
+          if (modified > 0) parts.push(t('store.resume.edits', { n: formatCount(modified, locale) }))
+          if (resumedAdded > 0) parts.push(t('store.resume.added', { n: formatCount(resumedAdded, locale) }))
+          if (resumedConfirmed > 0) parts.push(t('store.resume.confirmed', { n: formatCount(resumedConfirmed, locale) }))
+          get().toast(t('store.resume', { summary: parts.join(t('store.resume.join')) }), 'success')
         }
       } catch (err) {
         off()
         set({ busy: null })
-        get().toast(`打开失败：${(err as Error).message}`, 'error')
+        get().toast(t('store.openError', { detail: (err as Error).message }), 'error')
         throw err
       }
     },
@@ -658,18 +705,18 @@ export const useStore = create<Store>((set, get) => {
       try {
         await api.createDataset({ destPath, format, columns: template.fields.map((f) => f.name) })
       } catch (err) {
-        get().toast(`新建失败：${(err as Error).message}`, 'error')
+        get().toast(t('store.createError', { detail: (err as Error).message }), 'error')
         throw err
       }
       await get().openFile(destPath)
     },
 
     async forgetSession(sessionId) {
-      if (!window.confirm('丢弃这份文件的全部编辑进度？此操作不可撤销。')) return
+      if (!window.confirm(t('store.forgetConfirm'))) return
       try {
         await api.forgetSession(sessionId)
       } catch (err) {
-        get().toast(`丢弃失败：${(err as Error).message}`, 'error')
+        get().toast(t('store.forgetError', { detail: (err as Error).message }), 'error')
         return
       }
       if (get().dataset?.id === sessionId) await get().closeDataset()
@@ -1112,7 +1159,7 @@ export const useStore = create<Store>((set, get) => {
         await doFlush(get, set)
         return result
       } catch (err) {
-        get().toast(`导出失败：${(err as Error).message}`, 'error')
+        get().toast(t('store.exportError', { detail: (err as Error).message }), 'error')
         return null
       }
     },
@@ -1160,7 +1207,13 @@ function computeExportIds(state: Store): string[] {
 
 /** 设置还没从主进程读回来时的兜底值。 */
 function defaultSettings(): Settings {
-  return { theme: 'system', locale: 'zh-CN', lastOpenDir: null, recentSessionIds: [], recordTemplates: [] }
+  return {
+    theme: 'system',
+    locale: 'zh-CN',
+    lastOpenDir: null,
+    recentSessionIds: [],
+    recordTemplates: []
+  }
 }
 
 /** 生成导出面板的默认列配置。 */

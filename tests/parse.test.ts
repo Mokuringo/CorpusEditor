@@ -50,7 +50,7 @@ describe('解析各类微调数据格式', () => {
     const result = await readSourceFile(file)
     expect(result.records).toHaveLength(2)
     expect(result.records[0].data).toEqual({ text: '一行文本' })
-    expect(result.warnings.join()).toContain('不是对象')
+    expect(result.warnings.some((w) => w.code === 'PARSE_WRAPPED')).toBe(true)
   })
 
   it('JSONL：整份都不是 JSON 时退化为纯文本逐行读入', async () => {
@@ -58,7 +58,7 @@ describe('解析各类微调数据格式', () => {
     const result = await readSourceFile(file)
     expect(result.records).toHaveLength(2)
     expect(result.records[0].data).toEqual({ text: '一行文本' })
-    expect(result.warnings.join()).toContain('纯文本')
+    expect(result.warnings.some((w) => w.code === 'PARSE_JSONL_FALLBACK_TXT')).toBe(true)
   })
 
   it('JSON 数组', async () => {
@@ -72,7 +72,7 @@ describe('解析各类微调数据格式', () => {
     const file = await writeFile('dict.json', JSON.stringify({ version: 1, data: [{ a: 1 }, { a: 2 }] }))
     const result = await readSourceFile(file)
     expect(result.records).toHaveLength(2)
-    expect(result.warnings.join()).toContain('data')
+    expect(result.warnings.some((w) => w.code === 'PARSE_TOP_LEVEL_DICT')).toBe(true)
   })
 
   it('JSON 对象：无数组字段时当作单条记录', async () => {
@@ -102,7 +102,7 @@ describe('解析各类微调数据格式', () => {
     const result = await readSourceFile(file)
     expect(result.records).toHaveLength(0)
     expect(result.fieldOrder).toEqual(['instruction', 'output'])
-    expect(result.warnings.some((w) => w.includes('只有表头'))).toBe(true)
+    expect(result.warnings.some((w) => w.code === 'PARSE_HEADER_ONLY')).toBe(true)
   })
 
   it('TSV：按制表符切分', async () => {
@@ -123,7 +123,7 @@ describe('解析各类微调数据格式', () => {
     const result = await readSourceFile(file)
     expect(result.records).toHaveLength(2)
     expect(result.records[0].data.text).toBe('第一行')
-    expect(result.warnings.join()).toContain('空行')
+    expect(result.warnings.some((w) => w.code === 'PARSE_SKIPPED_BLANKS')).toBe(true)
   })
 
   it('Parquet：读写往返', async () => {
@@ -147,7 +147,7 @@ describe('解析各类微调数据格式', () => {
     const file = await writeFile('empty.jsonl', '')
     const result = await readSourceFile(file)
     expect(result.records).toHaveLength(0)
-    expect(result.warnings.join()).toContain('没有解析到')
+    expect(result.warnings.some((w) => w.code === 'PARSE_EMPTY_FILE')).toBe(true)
   })
 
   it('带 BOM 的文件也能正确解析', async () => {
@@ -158,7 +158,7 @@ describe('解析各类微调数据格式', () => {
 
   it('传入目录时报错', async () => {
     const dir = await tmpDir()
-    await expect(readSourceFile(dir)).rejects.toThrow('不是文件')
+    await expect(readSourceFile(dir)).rejects.toThrow('CE:PATH_NOT_FILE')
   })
 })
 
@@ -169,22 +169,22 @@ describe('解析各类微调数据格式', () => {
 describe('损坏与空文件', () => {
   it('JSON 语法错误 → 中文报错，而不是英文堆栈', async () => {
     const file = await writeFile('broken.json', '{"a": [1, 2,}')
-    await expect(readSourceFile(file)).rejects.toThrow(/JSON 解析失败/)
+    await expect(readSourceFile(file)).rejects.toThrow('CE:PARSE_JSON_FAILED')
   })
 
   it('空的 JSON 文件 → 报错，不能静默当成 0 条', async () => {
     const file = await writeFile('empty.json', '')
-    await expect(readSourceFile(file)).rejects.toThrow(/JSON 解析失败/)
+    await expect(readSourceFile(file)).rejects.toThrow('CE:PARSE_JSON_FAILED')
   })
 
   it('YAML 语法错误 → 中文报错', async () => {
     const file = await writeFile('broken.yaml', 'a: [1, 2\nb: 3')
-    await expect(readSourceFile(file)).rejects.toThrow(/YAML 解析失败/)
+    await expect(readSourceFile(file)).rejects.toThrow('CE:PARSE_YAML_FAILED')
   })
 
   it('空的 YAML 文件 → 明确说「文件为空」', async () => {
     const file = await writeFile('empty.yaml', '')
-    await expect(readSourceFile(file)).rejects.toThrow(/YAML 文件为空/)
+    await expect(readSourceFile(file)).rejects.toThrow('CE:PARSE_YAML_EMPTY')
   })
 
   it('只有空行的 TXT → 0 条，并在提示里说清跳过了几行', async () => {
@@ -193,14 +193,14 @@ describe('损坏与空文件', () => {
     const file = await writeFile('blank.txt', '\n\n   ')
     const result = await readSourceFile(file)
     expect(result.records).toHaveLength(0)
-    expect(result.warnings.join()).toContain('跳过 3 个空行')
+    expect(result.warnings.some((w) => w.code === 'PARSE_SKIPPED_BLANKS')).toBe(true)
   })
 
   it('连表头都没有的 CSV → 0 条，不抛错', async () => {
     const file = await writeFile('empty.csv', '')
     const result = await readSourceFile(file)
     expect(result.records).toHaveLength(0)
-    expect(result.warnings.join()).toContain('没有解析到')
+    expect(result.warnings.some((w) => w.code === 'PARSE_NO_RECORDS')).toBe(true)
   })
 })
 

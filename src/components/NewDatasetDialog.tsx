@@ -3,6 +3,7 @@ import { FolderOpen, Plus } from 'lucide-react'
 import Modal from './Modal'
 import { api } from '../lib/api'
 import { useStore } from '../state/store'
+import { useT } from '../i18n'
 import { templateGroups } from '@shared/templates'
 import { BUILTIN_TEMPLATES } from '@shared/types'
 import type { RecordTemplate } from '@shared/types'
@@ -10,34 +11,32 @@ import type { RecordTemplate } from '@shared/types'
 const EXT_BY_FORMAT = { jsonl: 'jsonl', json: 'json', csv: 'csv', tsv: 'tsv', yaml: 'yaml' } as const
 type NewFormat = keyof typeof EXT_BY_FORMAT
 
-const FORMAT_HINT: Record<NewFormat, string> = {
-  jsonl: '一行一条，训练脚本最常用。空文件即可。',
-  json: '整体一个数组，初始内容写成 []。',
-  csv: '表格格式，初始内容只写表头（含 BOM，Excel 打开不乱码）。',
-  tsv: '制表符分隔，初始内容只写表头。',
-  yaml: '初始内容写成 []。'
-}
-
 /**
  * 新建一个空的数据集文件。
  * 和「新增记录」共用同一套字段模板，但这里模板只决定 CSV 表头 —— 新文件一律不含任何记录。
  */
 export default function NewDatasetDialog({ onClose }: { onClose: () => void }) {
+  const t = useT()
   const createDataset = useStore((s) => s.createDataset)
   const settings = useStore((s) => s.settings)
   const templates = [...BUILTIN_TEMPLATES, ...(settings?.recordTemplates ?? [])]
 
-  const [name, setName] = useState('未命名数据集')
+  const [name, setName] = useState(() => t('dataset.untitled'))
   const [format, setFormat] = useState<NewFormat>('jsonl')
   const [templateId, setTemplateId] = useState('alpaca')
   const [busy, setBusy] = useState(false)
 
   const groups = templateGroups(settings?.recordTemplates ?? [])
   const template: RecordTemplate =
-    templates.find((t) => t.id === templateId) ?? BUILTIN_TEMPLATES[0]
+    templates.find((tpl) => tpl.id === templateId) ?? BUILTIN_TEMPLATES[0]
+
+  const fieldList =
+    template.fields.length > 0
+      ? template.fields.map((f) => f.name).join(t('dataset.fieldSep'))
+      : t('dataset.emptyFields')
 
   const submit = async () => {
-    const suggested = `${name.trim() || '未命名数据集'}.${EXT_BY_FORMAT[format]}`
+    const suggested = `${name.trim() || t('dataset.untitled')}.${EXT_BY_FORMAT[format]}`
     const destPath = await api.saveNewDatasetDialog(suggested)
     if (!destPath) return
     setBusy(true)
@@ -53,28 +52,28 @@ export default function NewDatasetDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="新建数据集"
-      subtitle="先建一个空文件，进去之后用「新增记录」一条条填"
+      title={t('dataset.title')}
+      subtitle={t('dataset.subtitle')}
       onClose={onClose}
       footer={
         <>
           <span className="muted" style={{ fontSize: 'var(--fs-caption)' }}>
-            已有同名文件时会被拒绝 —— CorpusEditor 从不覆盖已存在的文件。
+            {t('dataset.footerNote')}
           </span>
           <span style={{ flex: 1 }} />
           <button className="btn" onClick={onClose}>
-            取消
+            {t('dialog.cancel')}
           </button>
           <button className="btn btn--primary" onClick={() => void submit()} disabled={busy}>
             <Plus size={12} />
-            {busy ? '创建中…' : '选择位置并创建'}
+            {busy ? t('dataset.creating') : t('dataset.create')}
           </button>
         </>
       }
     >
       <div className="form-grid">
         <label className="form-grid__label" htmlFor="nd-name">
-          名称
+          {t('dataset.name')}
         </label>
         <input
           id="nd-name"
@@ -85,7 +84,7 @@ export default function NewDatasetDialog({ onClose }: { onClose: () => void }) {
         />
 
         <label className="form-grid__label" htmlFor="nd-format">
-          格式
+          {t('dataset.format')}
         </label>
         <div>
           <select
@@ -94,19 +93,19 @@ export default function NewDatasetDialog({ onClose }: { onClose: () => void }) {
             value={format}
             onChange={(e) => setFormat(e.target.value as NewFormat)}
           >
-            <option value="jsonl">JSONL</option>
-            <option value="json">JSON 数组</option>
-            <option value="csv">CSV</option>
-            <option value="tsv">TSV</option>
-            <option value="yaml">YAML</option>
+            <option value="jsonl">{t('dataset.format.jsonl')}</option>
+            <option value="json">{t('dataset.format.json')}</option>
+            <option value="csv">{t('dataset.format.csv')}</option>
+            <option value="tsv">{t('dataset.format.tsv')}</option>
+            <option value="yaml">{t('dataset.format.yaml')}</option>
           </select>
           <p className="muted" style={{ margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-caption)' }}>
-            {FORMAT_HINT[format]}
+            {t(`dataset.format.${format}.hint`)}
           </p>
         </div>
 
         <label className="form-grid__label" htmlFor="nd-template">
-          字段模板
+          {t('dataset.template')}
         </label>
         <div>
           <select
@@ -116,11 +115,11 @@ export default function NewDatasetDialog({ onClose }: { onClose: () => void }) {
             onChange={(e) => setTemplateId(e.target.value)}
           >
             {groups.map((group) => (
-              <optgroup key={group.label} label={group.label}>
-                {group.items.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                    {t.fields.length > 0 ? ` · ${t.fields.map((f) => f.name).join(' / ')}` : ''}
+              <optgroup key={group.id} label={t(`template.group.${group.id}`)}>
+                {group.items.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name}
+                    {tpl.fields.length > 0 ? ` · ${tpl.fields.map((f) => f.name).join(' / ')}` : ''}
                   </option>
                 ))}
               </optgroup>
@@ -128,8 +127,8 @@ export default function NewDatasetDialog({ onClose }: { onClose: () => void }) {
           </select>
           <p className="muted" style={{ margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-caption)' }}>
             {format === 'csv' || format === 'tsv'
-              ? `表头将写为：${template.fields.map((f) => f.name).join('、') || '（空）'}`
-              : `决定「新增记录」时出现的字段骨架（${template.fields.map((f) => f.name).join(' / ') || '空'}），不会往文件里预置任何记录。`}
+              ? t('dataset.headerNote', { fields: fieldList })
+              : t('dataset.skeletonNote', { fields: fieldList })}
           </p>
         </div>
       </div>
@@ -139,7 +138,7 @@ export default function NewDatasetDialog({ onClose }: { onClose: () => void }) {
           <FolderOpen size={14} />
         </span>
         <span>
-          {name.trim() || '未命名数据集'}.{EXT_BY_FORMAT[format]}
+          {name.trim() || t('dataset.untitled')}.{EXT_BY_FORMAT[format]}
         </span>
       </div>
     </Modal>

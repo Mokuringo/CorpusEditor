@@ -6,9 +6,11 @@ import LoadingScreen from './components/LoadingScreen'
 import Toasts from './components/Toasts'
 import ReplaceDialog from './components/ReplaceDialog'
 import ExportDialog from './components/ExportDialog'
+import { useT } from './i18n'
 import { useStore } from './state/store'
 
 export default function App() {
+  const t = useT()
   const ready = useStore((s) => s.ready)
   const busy = useStore((s) => s.busy)
   const dataset = useStore((s) => s.dataset)
@@ -23,7 +25,7 @@ export default function App() {
       <TitleBar />
       <div className="app__content">
         {!ready ? (
-          <LoadingScreen label="正在启动…" progress={null} />
+          <LoadingScreen label={t('app.loading')} progress={null} />
         ) : busy ? (
           <LoadingScreen label={busy.label} progress={busy.progress} />
         ) : dataset ? (

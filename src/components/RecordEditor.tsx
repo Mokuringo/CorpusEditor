@@ -6,11 +6,9 @@ import ReviewBar from './ReviewBar'
 import { getOriginalRecord, peekOriginalRecord } from '../state/originals'
 import { useStore } from '../state/store'
 import { useVisibleIndices } from '../state/visible'
+import { useT } from '../i18n'
 import { recordStatus } from '@shared/patch'
 import type { Json } from '@shared/types'
-
-/** 新建记录的还原入口要禁用，并在 tooltip 里写清原因 —— 不给用户一个猜不出为什么点不动的灰按钮。 */
-const NEW_RECORD_REVERT_HINT = '新建的记录没有原始值可以还原'
 
 function useOriginalRecord(sessionId: string, recordId: string): Record<string, Json> | null {
   const [original, setOriginal] = useState<Record<string, Json> | null>(() =>
@@ -37,6 +35,7 @@ function useOriginalRecord(sessionId: string, recordId: string): Record<string, 
 }
 
 export default function RecordEditor() {
+  const t = useT()
   const dataset = useStore((s) => s.dataset)
   const records = useStore((s) => s.records)
   const fields = useStore((s) => s.fields)
@@ -64,7 +63,7 @@ export default function RecordEditor() {
   if (!record) {
     return (
       <div className="editor">
-        <div className="empty">这条记录不存在</div>
+        <div className="empty">{t('record.notFound')}</div>
       </div>
     )
   }
@@ -86,11 +85,11 @@ export default function RecordEditor() {
           <div className="record-head">
             <span className="record-head__index">#{record.index + 1}</span>
             <div className="record-head__badges">
-              {isNew && <span className="badge badge--new">新建</span>}
-              {status === 'confirmed' && <span className="badge badge--accent">已确认</span>}
-              {status === 'pending' && <span className="badge badge--clay">{changeCount} 处改动 · 待确认</span>}
-              {status === 'unmodified' && <span className="badge badge--muted">未修改</span>}
-              {isDeleted && <span className="badge badge--danger">已删除 · 导出时排除</span>}
+              {isNew && <span className="badge badge--new">{t('record.newTag')}</span>}
+              {status === 'confirmed' && <span className="badge badge--accent">{t('record.confirmedTag')}</span>}
+              {status === 'pending' && <span className="badge badge--clay">{t('record.pendingBadge', { n: changeCount })}</span>}
+              {status === 'unmodified' && <span className="badge badge--muted">{t('record.unmodified')}</span>}
+              {isDeleted && <span className="badge badge--danger">{t('record.deletedBadge')}</span>}
             </div>
             <span className="record-head__spacer" />
             <div className="record-head__actions">
@@ -99,19 +98,19 @@ export default function RecordEditor() {
                 <button
                   className="btn btn--sm"
                   onClick={() => unconfirmRecord(record.index)}
-                  title="退回待确认后就可以继续编辑"
+                  title={t('record.unconfirmTitle')}
                 >
                   <RotateCcw size={11} />
-                  退回修改
+                  {t('record.unconfirmBtn')}
                 </button>
               ) : (
                 <button
                   className="btn btn--sm btn--primary"
                   onClick={() => confirmRecord(record.index)}
-                  title="标记为已确认：看过并定稿，之后不能再改"
+                  title={t('record.confirmTitle')}
                 >
                   <CheckCheck size={11} />
-                  确认
+                  {t('record.confirmBtn')}
                 </button>
               )}
               {changeCount > 0 && !locked && (
@@ -119,21 +118,21 @@ export default function RecordEditor() {
                   className="btn btn--sm"
                   onClick={() => void revertRecord(record.id)}
                   disabled={isNew}
-                  title={isNew ? NEW_RECORD_REVERT_HINT : '还原为原始内容'}
+                  title={isNew ? t('record.newRevertHint') : t('record.revertOriginal')}
                 >
                   <RotateCcw size={11} />
-                  还原整条
+                  {t('record.revertAll')}
                 </button>
               )}
               {isDeleted ? (
                 <button className="btn btn--sm" onClick={() => restoreRecord(record.index)}>
                   <Undo2 size={11} />
-                  恢复
+                  {t('record.restore')}
                 </button>
               ) : (
                 <button className="btn btn--sm btn--danger" onClick={() => deleteRecord(record.index)}>
                   <Trash2 size={11} />
-                  删除这条
+                  {t('record.deleteBtn')}
                 </button>
               )}
             </div>
@@ -142,7 +141,7 @@ export default function RecordEditor() {
           {locked && (
             <div className="locknote">
               <CheckCheck size={12} />
-              这条已确认，内容已锁定。要改请先点「退回修改」，改动后需要重新确认。
+              {t('record.locked')}
             </div>
           )}
 
@@ -154,7 +153,7 @@ export default function RecordEditor() {
               modifiedKeys={modifiedKeys}
               original={original}
               readOnly={locked}
-              revertDisabledReason={isNew ? NEW_RECORD_REVERT_HINT : null}
+              revertDisabledReason={isNew ? t('record.newRevertHint') : null}
             />
           ))}
 
@@ -182,6 +181,7 @@ function RawRecordEditor({
   data: Record<string, Json>
   readOnly?: boolean
 }) {
+  const t = useT()
   const setRecordData = useStore((s) => s.setRecordData)
   const toast = useStore((s) => s.toast)
   const [open, setOpen] = useState(false)
@@ -189,12 +189,12 @@ function RawRecordEditor({
   return (
     <section className="field">
       <header className="field__head">
-        <span className="field__name">整条记录 · JSON</span>
-        <span className="field__kind">原始视图</span>
+        <span className="field__name">{t('record.fullJson')}</span>
+        <span className="field__kind">{t('record.rawView')}</span>
         <span className="field__spacer" />
         <button className="btn btn--sm" onClick={() => setOpen((v) => !v)}>
           <Braces size={11} />
-          {open ? '收起' : '展开'}
+          {open ? t('record.collapse') : t('record.expand')}
         </button>
       </header>
       {open && (
@@ -204,7 +204,7 @@ function RawRecordEditor({
             readOnly={readOnly}
             onCommit={(next) => {
               if (next === null || typeof next !== 'object' || Array.isArray(next)) {
-                toast('整条记录必须是一个 JSON 对象', 'error')
+                toast(t('newrecord.toast.mustBeObject'), 'error')
                 return
               }
               setRecordData(recordId, next as Record<string, Json>)

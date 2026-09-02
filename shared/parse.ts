@@ -6,6 +6,7 @@ import * as YAML from 'js-yaml'
 import { parquetReadObjects } from 'hyparquet'
 import { toJsonSafe } from './jsonpath'
 import { findListField } from './inspect'
+import { appError, warn, type Warning } from './errors'
 import type { DataRecord, Json, SourceFormat } from './types'
 
 export const MAX_BYTES = 800 * 1024 * 1024
@@ -48,7 +49,7 @@ function stripBom(text: string): string {
 export interface ParsedSource {
   records: DataRecord[]
   fieldOrder: string[]
-  warnings: string[]
+  warnings: Warning[]
 }
 
 export async function parseBuffer(format: SourceFormat, buffer: Buffer, name = ''): Promise<ParsedSource> {
@@ -68,16 +69,16 @@ export async function parseBuffer(format: SourceFormat, buffer: Buffer, name = '
     case 'txt':
       return parseTxt(buffer)
     default:
-      throw new Error(`不支持的格式：${format}`)
+      throw appError('PARSE_UNSUPPORTED_FORMAT', { format })
   }
 }
 
-function fromValue(value: unknown, warnings: string[]): unknown[] {
+function fromValue(value: unknown, warnings: Warning[]): unknown[] {
   if (Array.isArray(value)) return value
   if (value !== null && typeof value === 'object') {
     const listField = findListField(value)
     if (listField) {
-      warnings.push(`顶层对象是字典，已自动取其中的 "${listField}" 数组作为记录列表。`)
+      warnings.push(warn('PARSE_TOP_LEVEL_DICT', { field: listField }))
       return (value as Record<string, unknown>)[listField] as unknown[]
     }
     return [value]
@@ -86,7 +87,7 @@ function fromValue(value: unknown, warnings: string[]): unknown[] {
   return [value]
 }
 
-function toRecords(items: unknown[], warnings: string[]): ParsedSource {
+function toRecords(items: unknown[], warnings: Warning[]): ParsedSource {
   const records: DataRecord[] = []
   const fieldOrder: string[] = []
   const seen = new Set<string>()
@@ -115,9 +116,9 @@ function toRecords(items: unknown[], warnings: string[]): ParsedSource {
     records.push({ id: String(i), index: i, data })
   }
 
-  if (wrapped > 0) warnings.push(`有 ${wrapped} 条数据不是对象，已包装为 { "text": ... }。`)
-  if (truncated > 0) warnings.push(`记录数超过上限 ${MAX_RECORDS.toLocaleString()}，已截断 ${truncated.toLocaleString()} 条。`)
-  if (records.length === 0) warnings.push('文件里没有解析到任何记录。')
+  if (wrapped > 0) warnings.push(warn('PARSE_WRAPPED', { count: wrapped }))
+  if (truncated > 0) warnings.push(warn('PARSE_TRUNCATED', { limit: MAX_RECORDS, dropped: truncated }))
+  if (records.length === 0) warnings.push(warn('PARSE_NO_RECORDS'))
 
   return { records, fieldOrder, warnings }
 }
@@ -125,7 +126,7 @@ function toRecords(items: unknown[], warnings: string[]): ParsedSource {
 function parseJsonl(buffer: Buffer): ParsedSource {
   const text = stripBom(buffer.toString('utf8'))
   if (!text.trim()) {
-    return { records: [], fieldOrder: [], warnings: ['文件是空的，没有解析到任何记录。'] }
+    return { records: [], fieldOrder: [], warnings: [warn('PARSE_EMPTY_FILE')] }
   }
   const lines = text.split(/\r?\n/)
   const items: unknown[] = []
@@ -139,15 +140,15 @@ function parseJsonl(buffer: Buffer): ParsedSource {
       failed++
     }
   }
-  const warnings: string[] = []
+  const warnings: Warning[] = []
   if (items.length === 0) {
     // 一行都解析不出来：可能是整体 JSON，也可能其实是纯文本。
     if (looksLikeJsonDocument(text)) return parseJson(buffer)
     const result = parseTxt(buffer)
-    result.warnings.unshift('没有任何一行是合法 JSON，已按「一行一条纯文本」读入。')
+    result.warnings.unshift(warn('PARSE_JSONL_FALLBACK_TXT'))
     return result
   }
-  if (failed > 0) warnings.push(`有 ${failed} 行不是合法 JSON，已跳过。`)
+  if (failed > 0) warnings.push(warn('PARSE_JSONL_BAD_LINES', { count: failed }))
   return toRecords(items, warnings)
 }
 
@@ -163,15 +164,15 @@ function parseJson(buffer: Buffer): ParsedSource {
   try {
     value = JSON.parse(text)
   } catch (err) {
-    throw new Error(`JSON 解析失败：${(err as Error).message}`)
+    throw appError('PARSE_JSON_FAILED', { detail: (err as Error).message })
   }
-  const warnings: string[] = []
+  const warnings: Warning[] = []
   return toRecords(fromValue(value, warnings), warnings)
 }
 
 function parseDelimited(buffer: Buffer, delimiter: string | undefined, name: string): ParsedSource {
   const text = stripBom(buffer.toString('utf8'))
-  const warnings: string[] = []
+  const warnings: Warning[] = []
   const result = Papa.parse<Record<string, string>>(text, {
     header: true,
     delimiter,
@@ -181,11 +182,15 @@ function parseDelimited(buffer: Buffer, delimiter: string | undefined, name: str
   })
   if (result.errors?.length) {
     const first = result.errors.slice(0, 3).map((e) => `第 ${e.row ?? '?'} 行：${e.message}`)
-    warnings.push(`解析时有 ${result.errors.length} 个警告，例如 ${first.join('；')}`)
+    warnings.push(
+      warn('PARSE_DELIMITED_ERRORS', { count: result.errors.length, examples: first.join('；') })
+    )
   }
   const fields = result.meta.fields ?? []
   const dup = fields.filter((f, i) => fields.indexOf(f) !== i)
-  if (dup.length) warnings.push(`存在重复列名 ${[...new Set(dup)].join('、')}，已自动重命名。`)
+  if (dup.length) {
+    warnings.push(warn('PARSE_DUPLICATE_HEADERS', { names: [...new Set(dup)].join('、') }))
+  }
   const rows = result.data.map((row) => {
     const out: Record<string, Json> = {}
     for (const f of fields) out[f] = row[f] ?? ''
@@ -196,24 +201,27 @@ function parseDelimited(buffer: Buffer, delimiter: string | undefined, name: str
   // 不补上字段的话「新增一条」会退化成空白模板，用户选的列就白选了。
   if (parsed.records.length === 0 && fields.length > 0) {
     parsed.fieldOrder = [...new Set(fields)]
-    parsed.warnings = warnings.filter((w) => !w.includes('没有解析到数据行'))
-    if (name) parsed.warnings.push(`${name} 只有表头，还没有任何记录。`)
+    // 「只有表头」这条已经把情况说清了，再叠一条「没有解析到任何记录」是噪音。
+    // 按码过滤而不是按文案 —— 早先按子串 '没有解析到数据行' 过滤时与实际文案对不上，
+    // 这个过滤一直是死的，改成码之后才真的生效。
+    parsed.warnings = warnings.filter((w) => w.code !== 'PARSE_NO_RECORDS')
+    if (name) parsed.warnings.push(warn('PARSE_HEADER_ONLY', { name }))
   }
   return parsed
 }
 
 function parseYaml(buffer: Buffer): ParsedSource {
   const text = stripBom(buffer.toString('utf8'))
-  const warnings: string[] = []
+  const warnings: Warning[] = []
   let docs: unknown[]
   try {
     docs = YAML.loadAll(text) as unknown[]
   } catch (err) {
-    throw new Error(`YAML 解析失败：${(err as Error).message}`)
+    throw appError('PARSE_YAML_FAILED', { detail: (err as Error).message })
   }
   const meaningful = docs.filter((d) => d !== null && d !== undefined)
-  if (meaningful.length === 0) throw new Error('YAML 文件为空')
-  if (meaningful.length > 1) warnings.push(`YAML 含 ${meaningful.length} 个文档，只取第一个。`)
+  if (meaningful.length === 0) throw appError('PARSE_YAML_EMPTY')
+  if (meaningful.length > 1) warnings.push(warn('PARSE_YAML_MULTI_DOC', { count: meaningful.length }))
   return toRecords(fromValue(meaningful[0], warnings), warnings)
 }
 
@@ -224,14 +232,14 @@ async function parseParquet(buffer: Buffer): Promise<ParsedSource> {
     slice: (start: number, end?: number) => Promise.resolve(ab.slice(start, end))
   }
   const rows = await parquetReadObjects({ file })
-  const warnings: string[] = []
+  const warnings: Warning[] = []
   return toRecords(rows, warnings)
 }
 
 function parseTxt(buffer: Buffer): ParsedSource {
   const text = stripBom(buffer.toString('utf8'))
   const lines = text.split(/\r?\n/)
-  const warnings: string[] = []
+  const warnings: Warning[] = []
   let blank = 0
   const items: unknown[] = []
   for (const line of lines) {
@@ -241,8 +249,8 @@ function parseTxt(buffer: Buffer): ParsedSource {
     }
     items.push({ text: line })
   }
-  if (blank > 0) warnings.push(`已跳过 ${blank} 个空行。`)
-  warnings.push('纯文本文件按「一行一条记录」读入，字段名固定为 text。')
+  if (blank > 0) warnings.push(warn('PARSE_SKIPPED_BLANKS', { count: blank }))
+  warnings.push(warn('PARSE_TXT_MODE'))
   return toRecords(items, warnings)
 }
 
@@ -256,9 +264,12 @@ export interface ReadSourceResult extends ParsedSource {
 /** 以只读方式打开并解析源文件，全程不会对该文件做任何写入。 */
 export async function readSourceFile(filePath: string, formatHint?: SourceFormat): Promise<ReadSourceResult> {
   const stat = await fsp.stat(filePath)
-  if (!stat.isFile()) throw new Error('选择的路径不是文件')
+  if (!stat.isFile()) throw appError('PATH_NOT_FILE')
   if (stat.size > MAX_BYTES) {
-    throw new Error(`文件过大（${(stat.size / 1024 / 1024).toFixed(1)} MB），超过 ${MAX_BYTES / 1024 / 1024} MB 上限`)
+    throw appError('FILE_TOO_LARGE', {
+      size: (stat.size / 1024 / 1024).toFixed(1),
+      limit: MAX_BYTES / 1024 / 1024
+    })
   }
   const format = formatHint ?? detectFormat(filePath)
   const handle = await fsp.open(filePath, fs.constants.O_RDONLY)

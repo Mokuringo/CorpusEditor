@@ -13,6 +13,7 @@ import type {
 } from '@shared/types'
 import { quickFingerprint } from '@shared/parse'
 import { modifiedRecordCount } from '@shared/patch'
+import { appError } from '@shared/errors'
 
 const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
@@ -101,7 +102,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
 }
 
 export function sessionFile(sessionId: string): string {
-  if (!isSessionId(sessionId)) throw new Error(`非法的会话 id：${String(sessionId)}`)
+  if (!isSessionId(sessionId)) throw appError('INVALID_SESSION_ID', { id: String(sessionId) })
   return path.join(sessionsDir(), `${sessionId}.json`)
 }
 
