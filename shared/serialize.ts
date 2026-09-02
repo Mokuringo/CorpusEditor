@@ -1,5 +1,6 @@
 import Papa from 'papaparse'
 import { formatPath, getAtPath, pathKey } from './jsonpath'
+import type { ErrorCode } from './errors'
 import type { DataRecord, ExportColumn, ExportConfig, Json, Path } from './types'
 
 export const INDEX_COLUMN = '__index'
@@ -91,14 +92,17 @@ export function serializeCsv(columns: string[], rows: FlatRow[], delimiter: stri
   return Papa.unparse({ fields: columns, data }, { delimiter, newline: '\r\n' })
 }
 
-/** 导出配置校验。放在这里而不是 export.ts，好让渲染进程不用引入 node 模块。 */
-export function validateExportConfig(config: ExportConfig): string | null {
+/**
+ * 导出配置校验。放在这里而不是 export.ts，好让渲染进程不用引入 node 模块。
+ * 返回错误码而不是文案：对话框里由渲染进程翻译，导出时由主进程转成 AppError。
+ */
+export function validateExportConfig(config: ExportConfig): ErrorCode | null {
   const enabled = config.columns.filter((c) => c.enabled)
-  if (enabled.length === 0) return '至少要保留一列'
+  if (enabled.length === 0) return 'EXPORT_NO_COLUMN'
   const labels = enabled.map((c) => c.label.trim())
-  if (labels.some((l) => !l)) return '列名不能为空'
-  if (new Set(labels).size !== labels.length) return '列名不能重复'
-  if (config.format === 'csv' && !config.delimiter) return 'CSV 分隔符不能为空'
+  if (labels.some((l) => !l)) return 'EXPORT_COLUMN_EMPTY'
+  if (new Set(labels).size !== labels.length) return 'EXPORT_COLUMN_DUPLICATE'
+  if (config.format === 'csv' && !config.delimiter) return 'EXPORT_DELIMITER_EMPTY'
   return null
 }
 

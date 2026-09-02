@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useStore } from '../state/store'
 import { formatCount } from '../lib/text'
+import { useT, useLocale } from '../i18n'
 
 const MAX_BUCKETS = 168
 
@@ -10,6 +11,8 @@ const MAX_BUCKETS = 168
  * 未动过的只有一条底线。这是本产品最独特的视觉元素，也是全局进度的状态地图。
  */
 export default function Warp() {
+  const t = useT()
+  const locale = useLocale()
   const records = useStore((s) => s.records)
   const edits = useStore((s) => s.edits)
   const deleted = useStore((s) => s.deleted)
@@ -58,7 +61,7 @@ export default function Warp() {
   const modifiedCount = Object.keys(edits).length
 
   return (
-    <div className="warp" title="每一根竖线代表一段记录：苔绿=已确认，陶土=待确认，红=已删除">
+    <div className="warp" title={t('warp.title')}>
       <div className="warp__bar">
         {buckets.map((bucket, i) => {
           const isSelected = i === selectedBucket
@@ -85,18 +88,18 @@ export default function Warp() {
       <div className="warp__legend">
         {confirmed.size > 0 && (
           <span>
-            已确认 <b className="num">{formatCount(confirmed.size)}</b>
+            {t('home.stat.confirmed')} <b className="num">{formatCount(confirmed.size, locale)}</b>
           </span>
         )}
         <span>
-          待确认 <b className="num">{formatCount(modifiedCount)}</b>
+          {t('warp.pending')} <b className="num">{formatCount(modifiedCount, locale)}</b>
         </span>
         <span>
-          共 <b className="num">{formatCount(total)}</b> 条
+          {t('warp.total')} <b className="num">{formatCount(total, locale)}</b> {t('statusbar.records')}
         </span>
         {deleted.size > 0 && (
           <span>
-            已删 <b className="num">{formatCount(deleted.size)}</b>
+            {t('home.stat.deleted')} <b className="num">{formatCount(deleted.size, locale)}</b>
           </span>
         )}
       </div>

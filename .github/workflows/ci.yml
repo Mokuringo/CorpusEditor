@@ -58,5 +58,7 @@ jobs:
       - run: npm ci
       - name: Build
         run: npm run build
-      - name: GUI tests (no screenshots)
-        run: node tests/gui/run.mjs --no-shots
+      - name: GUI tests (zh, no screenshots)
+        run: node tests/gui/run.mjs --locale=zh --no-shots
+      - name: GUI tests (en, no screenshots)
+        run: node tests/gui/run.mjs --locale=en --no-shots

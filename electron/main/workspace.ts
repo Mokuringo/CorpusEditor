@@ -6,6 +6,7 @@ import { applyEdits, filterValidEdits, mergeAddedIntoRecords } from '@shared/pat
 import { writeExport } from '@shared/export'
 import { defaultColumns } from '@shared/serialize'
 import { cloneJson, deepEqual, getAtPath, parsePathKey } from '@shared/jsonpath'
+import { appError, AppError, warn, type Warning } from '@shared/errors'
 import type {
   DataRecord,
   ExportConfig,
@@ -31,7 +32,7 @@ interface Workspace {
   records: DataRecord[]
   byId: Map<string, DataRecord>
   fieldOrder: string[]
-  warnings: string[]
+  warnings: Warning[]
 }
 
 const workspaces = new Map<string, Workspace>()
@@ -61,7 +62,7 @@ export interface OpenOptions {
 
 export async function openSource({ filePath, sender, fresh }: OpenOptions): Promise<OpenResult> {
   const stat = await fsp.stat(filePath)
-  if (!stat.isFile()) throw new Error('选择的路径不是一个文件')
+  if (!stat.isFile()) throw appError('PATH_NOT_FILE')
 
   const sessionId = makeSessionId(filePath)
   let state = fresh ? null : await loadSession(sessionId)
@@ -95,7 +96,7 @@ export async function openSource({ filePath, sender, fresh }: OpenOptions): Prom
 
   const warnings = [...parsed.warnings]
   if (dropped > 0) {
-    warnings.push(`源文件已发生变化，有 ${dropped} 处编辑找不到对应位置，已自动忽略。`)
+    warnings.push(warn('SESSION_EDITS_DROPPED', { count: dropped }))
   }
 
   // 删除标记记的是数组下标，源文件行数一变就会指向别的记录。
@@ -103,9 +104,7 @@ export async function openSource({ filePath, sender, fresh }: OpenOptions): Prom
   const previousDeleted = session.deleted ?? []
   if (sourceChanged && previousDeleted.length > 0) {
     session.deleted = []
-    warnings.push(
-      `源文件已发生变化，已清除 ${previousDeleted.length} 个删除标记，请重新确认要删除哪些记录。`
-    )
+    warnings.push(warn('SESSION_DELETES_CLEARED', { count: previousDeleted.length }))
   } else {
     session.deleted = previousDeleted.filter((i) => i < mergedRecords.length)
   }
@@ -202,15 +201,17 @@ export async function createDataset(input: CreateInput): Promise<{ path: string 
 
   const sessionsRoot = path.resolve(sessionsDir())
   if (dest === sessionsRoot || dest.startsWith(sessionsRoot + path.sep)) {
-    throw new Error('不能把数据集建在应用的进度目录里，请另选一个位置。')
+    throw appError('DEST_IN_SESSIONS_DIR')
   }
 
   try {
     await fsp.access(dest)
-    throw new Error('这个位置已经有文件了。CorpusEditor 不会覆盖已有文件，请换一个文件名。')
+    throw appError('FILE_EXISTS')
   } catch (err) {
-    // access 抛 ENOENT 正是我们要的「不存在」；上面那条覆盖错误要继续往外抛
-    if ((err as Error).message.startsWith('这个位置')) throw err
+    // access 抛 ENOENT 正是我们要的「不存在」；上面那条覆盖错误要继续往外抛。
+    // 按类型判断而不是按文案前缀 —— 文案一变前缀就对不上，守卫静默失效，
+    // 直接落到 writeFile 覆盖用户已有文件（红线一）。
+    if (err instanceof AppError) throw err
   }
 
   await fsp.mkdir(path.dirname(dest), { recursive: true })
@@ -343,18 +344,18 @@ export interface ExportInput {
 
 export async function runExport(input: ExportInput): Promise<ExportResult> {
   const ws = workspaces.get(input.sessionId)
-  if (!ws) throw new Error('会话已失效，请重新打开文件')
+  if (!ws) throw appError('SESSION_EXPIRED')
 
   const sourceResolved = path.resolve(ws.state.source.path)
   const destResolved = path.resolve(input.destPath)
   if (sourceResolved === destResolved) {
-    throw new Error('不能导出到源文件本身 —— 原文件必须保持不变，请另选一个输出路径。')
+    throw appError('EXPORT_TO_SOURCE')
   }
 
   // 进度目录里存着会话文件，导出到那儿会把进度本身覆盖掉
   const sessionsRoot = path.resolve(sessionsDir())
   if (destResolved === sessionsRoot || destResolved.startsWith(sessionsRoot + path.sep)) {
-    throw new Error('不能导出到应用的进度目录，请另选一个输出路径。')
+    throw appError('EXPORT_TO_SESSIONS_DIR')
   }
 
   const deleted = new Set(ws.state.deleted ?? [])

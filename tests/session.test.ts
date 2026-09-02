@@ -233,7 +233,7 @@ describe('源文件变化后的恢复', () => {
 
     const second = await openSource({ filePath: file, sender })
     expect(second.sourceChanged).toBe(true)
-    expect(second.warnings.join()).toContain('找不到对应位置')
+    expect(second.warnings.some((w) => w.code === 'SESSION_EDITS_DROPPED')).toBe(true)
     expect(second.edits['0']).toBeUndefined()
   })
 
@@ -300,7 +300,7 @@ describe('导出', () => {
         scope: 'all',
         ids: []
       })
-    ).rejects.toThrow('不能导出到源文件')
+    ).rejects.toThrow('CE:EXPORT_TO_SOURCE')
   })
 
   it('导出会应用已保存的改动，并跳过被删除的记录', async () => {
@@ -573,7 +573,7 @@ describe('删除安全性', () => {
     const second = await openSource({ filePath: file, sender })
     expect(second.sourceChanged).toBe(true)
     expect(second.deleted).toEqual([])
-    expect(second.warnings.join()).toContain('删除标记')
+    expect(second.warnings.some((w) => w.code === 'SESSION_DELETES_CLEARED')).toBe(true)
     // 磁盘上也确实是清空的
     expect((await loadSession(second.sessionId))?.deleted).toEqual([])
   })
@@ -601,7 +601,7 @@ describe('删除安全性', () => {
     expect(second.recordCount).toBe(2)
     expect(second.sourceChanged).toBe(true)
     expect(second.deleted).toEqual([])
-    expect(second.warnings.join()).toContain('删除标记')
+    expect(second.warnings.some((w) => w.code === 'SESSION_DELETES_CLEARED')).toBe(true)
   })
 
   it('内容未变时，越界的删除标记只是被裁掉而不是整体作废', async () => {
@@ -640,7 +640,7 @@ describe('删除安全性', () => {
         scope: 'all',
         ids: []
       })
-    ).rejects.toThrow('源文件')
+    ).rejects.toThrow('CE:EXPORT_TO_SOURCE')
     expect((await readText(file)).trim().split('\n')).toHaveLength(3)
   })
 
@@ -664,7 +664,7 @@ describe('删除安全性', () => {
         scope: 'all',
         ids: []
       })
-    ).rejects.toThrow('进度目录')
+    ).rejects.toThrow('CE:EXPORT_TO_SESSIONS_DIR')
 
     // 会话文件仍然健在
     await expect(fsp.stat(path.join(sessionsDir(), `${opened.sessionId}.json`))).resolves.toBeTruthy()

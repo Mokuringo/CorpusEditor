@@ -148,7 +148,7 @@ describe('新建数据集', () => {
       const dest = nodePath.join(dir, 'x.jsonl')
       await createDataset({ destPath: dest, format: 'jsonl', columns: ['a'] })
       await expect(createDataset({ destPath: dest, format: 'jsonl', columns: ['b'] })).rejects.toThrow(
-        /已经有文件/
+        'CE:FILE_EXISTS'
       )
       expect((await readText(dest)).trim()).toBe('')
     } finally {

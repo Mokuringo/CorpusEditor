@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Json } from '@shared/types'
+import { useT } from '../i18n'
 
 interface Props {
   value: Json
@@ -9,6 +10,7 @@ interface Props {
 
 /** JSON 字段编辑器：失焦时校验并写回，非法内容不会污染数据。 */
 export default function JsonEditor({ value, onCommit, readOnly }: Props) {
+  const t = useT()
   const [draft, setDraft] = useState(() => safeStringify(value))
   const [error, setError] = useState<string | null>(null)
   const valueRef = useRef(value)
@@ -56,7 +58,7 @@ export default function JsonEditor({ value, onCommit, readOnly }: Props) {
         }}
         onBlur={() => commitFrom(draft)}
       />
-      {error && <div className="json-edit__error">JSON 无效：{error}</div>}
+      {error && <div className="json-edit__error">{t('json.invalid')}{error}</div>}
     </div>
   )
 }

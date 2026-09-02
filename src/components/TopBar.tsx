@@ -1,5 +1,6 @@
 import { Download, Plus, Redo2, Replace, Undo2, X } from 'lucide-react'
 import Warp from './Warp'
+import { useT } from '../i18n'
 import { useStore } from '../state/store'
 
 /**
@@ -7,6 +8,7 @@ import { useStore } from '../state/store'
  * 这里只留经线刻度（全局进度）和撤销 / 替换 / 导出这组操作。
  */
 export default function TopBar() {
+  const t = useT()
   const dataset = useStore((s) => s.dataset)
   const undoStack = useStore((s) => s.undoStack)
   const redoStack = useStore((s) => s.redoStack)
@@ -25,34 +27,30 @@ export default function TopBar() {
       <Warp />
 
       <div className="topbar__actions">
-        <button className="iconbtn" onClick={undo} disabled={undoStack.length === 0} title="撤销 (Ctrl+Z)">
+        <button className="iconbtn" onClick={undo} disabled={undoStack.length === 0} title={t('topbar.undo')}>
           <Undo2 size={15} />
+        </button>
+        <button className="iconbtn" onClick={redo} disabled={redoStack.length === 0} title={t('topbar.redo')}>
+          <Redo2 size={15} />
+        </button>
+        <button className="btn" onClick={() => openNewRecord(view.selectedIndex + 1)} title={t('topbar.newRecord.title')}>
+          <Plus size={14} />
+          {t('topbar.newRecord')}
+        </button>
+        <button className="btn" onClick={openReplace} title={t('topbar.replace.title')}>
+          <Replace size={14} />
+          {t('topbar.replace')}
+        </button>
+        <button className="btn btn--primary" onClick={openExport} title={t('topbar.export.title')}>
+          <Download size={14} />
+          {t('topbar.export')}
         </button>
         <button
           className="iconbtn"
-          onClick={redo}
-          disabled={redoStack.length === 0}
-          title="重做 (Ctrl+Shift+Z)"
+          data-testid="close-file"
+          onClick={() => void closeDataset()}
+          title={t('topbar.close')}
         >
-          <Redo2 size={15} />
-        </button>
-        <button
-          className="btn"
-          onClick={() => openNewRecord(view.selectedIndex + 1)}
-          title="在当前这条之后插入一条新记录"
-        >
-          <Plus size={14} />
-          新建一条
-        </button>
-        <button className="btn" onClick={openReplace} title="查找替换 (Ctrl+F)">
-          <Replace size={14} />
-          替换
-        </button>
-        <button className="btn btn--primary" onClick={openExport} title="导出 (Ctrl+S)">
-          <Download size={14} />
-          导出
-        </button>
-        <button className="iconbtn" onClick={() => void closeDataset()} title="关闭文件">
           <X size={15} />
         </button>
       </div>

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { computeVisibleIndices } from './search'
+import { t } from '../i18n'
 import { useStore } from './store'
 import type { Store } from './store'
 
@@ -53,7 +54,7 @@ export function confirmAndAdvance(): void {
   if (!state.confirmed.has(state.view.selectedIndex)) state.confirmRecord(state.view.selectedIndex)
   const next = queue[at + 1]
   if (next === undefined) {
-    state.toast('已到队列末尾', 'success')
+    state.toast(t('review.queueEnd'), 'success')
     return
   }
   state.selectRecord(next)

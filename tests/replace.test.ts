@@ -42,11 +42,11 @@ const baseOptions: ReplaceOptions = {
 
 describe('匹配器构造', () => {
   it('空查找返回错误', () => {
-    expect(buildMatcher({ ...baseOptions, find: '' }).error).toBe('查找内容不能为空')
+    expect(buildMatcher({ ...baseOptions, find: '' }).error).toBe('REPLACE_FIND_EMPTY')
   })
 
   it('非法正则返回错误', () => {
-    expect(buildMatcher({ ...baseOptions, find: '([', useRegex: true }).error).toContain('正则表达式无效')
+    expect(buildMatcher({ ...baseOptions, find: '([', useRegex: true }).error).toContain('REPLACE_REGEX_INVALID')
   })
 
   it('普通模式下特殊字符被转义', () => {

@@ -3,6 +3,7 @@ import AutoTextarea from './AutoTextarea'
 import JsonEditor from './JsonEditor'
 import { deepEqual, pathKey } from '@shared/jsonpath'
 import { normalizeRole } from '@shared/inspect'
+import { useT } from '../i18n'
 import { useStore } from '../state/store'
 import type { FieldInfo } from '@shared/inspect'
 import type { DataRecord, Json } from '@shared/types'
@@ -18,6 +19,7 @@ interface Props {
 const STANDARD_ROLES = ['system', 'user', 'assistant', 'tool']
 
 export default function MessagesEditor({ record, field, modifiedKeys, original, readOnly }: Props) {
+  const t = useT()
   const editValue = useStore((s) => s.editValue)
   const setMessages = useStore((s) => s.setMessages)
 
@@ -63,9 +65,9 @@ export default function MessagesEditor({ record, field, modifiedKeys, original, 
                   value={role}
                   disabled={readOnly}
                   onChange={(e) => editValue(record.id, [name, i, kind.roleKey], e.target.value)}
-                  aria-label="角色"
+                  aria-label={t('messages.role')}
                 >
-                  {!roleOptions.includes(role) && <option value={role}>{role || '（空）'}</option>}
+                  {!roleOptions.includes(role) && <option value={role}>{role || t('messages.emptyRole')}</option>}
                   {roleOptions.map((option) => (
                     <option key={option} value={option}>
                       {option}
@@ -75,10 +77,10 @@ export default function MessagesEditor({ record, field, modifiedKeys, original, 
                 <span className="msg__idx mono">#{i + 1}</span>
                 <button
                   className="iconbtn"
-                  title={readOnly ? '已确认的记录不能修改' : '删除这一轮'}
-                  aria-label="删除这一轮"
+                  title={readOnly ? t('messages.readOnly') : t('messages.deleteTurn')}
+                  aria-label={t('messages.deleteTurn')}
                   disabled={readOnly}
-                  onClick={() => replaceArray(messages.filter((_, j) => j !== i), '删除对话轮次')}
+                  onClick={() => replaceArray(messages.filter((_, j) => j !== i), t('messages.delTurn'))}
                 >
                   <Trash2 size={13} />
                 </button>
@@ -87,7 +89,7 @@ export default function MessagesEditor({ record, field, modifiedKeys, original, 
               {typeof content === 'string' ? (
                 <AutoTextarea
                   value={content}
-                  placeholder="这一轮的内容"
+                  placeholder={t('messages.contentPlaceholder')}
                   onCommit={(next) => editValue(record.id, [name, i, kind.contentKey], next)}
                   readOnly={readOnly}
                 />
@@ -101,7 +103,7 @@ export default function MessagesEditor({ record, field, modifiedKeys, original, 
 
               {modified && originalContent !== undefined && originalContent !== content && (
                 <div className="field__orig">
-                  <span className="field__orig-label">原值</span>
+                  <span className="field__orig-label">{t('field.origLabel')}</span>
                   {typeof originalContent === 'string' ? originalContent : JSON.stringify(originalContent, null, 2)}
                 </div>
               )}
@@ -114,17 +116,17 @@ export default function MessagesEditor({ record, field, modifiedKeys, original, 
         className="btn btn--sm"
         style={{ alignSelf: 'flex-start' }}
         disabled={readOnly}
-        title={readOnly ? '已确认的记录不能修改' : undefined}
+        title={readOnly ? t('messages.readOnly') : undefined}
         onClick={() => {
           const next = [
             ...messages,
             { [kind.roleKey]: defaultRole, [kind.contentKey]: '' } as unknown as Json
           ]
-          replaceArray(next, '新增对话轮次')
+          replaceArray(next, t('messages.addTurnLabel'))
         }}
       >
         <Plus size={12} />
-        新增一轮
+        {t('messages.addTurn')}
       </button>
     </div>
   )

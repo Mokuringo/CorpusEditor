@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Modal from './Modal'
+import { useT } from '../i18n'
 
 export interface ConfirmDialogProps {
   title: string
@@ -19,20 +20,21 @@ export interface ConfirmDialogProps {
 export default function ConfirmDialog({
   title,
   subtitle,
-  confirmLabel = '确定',
-  cancelLabel = '取消',
+  confirmLabel,
+  cancelLabel,
   danger,
   disabled,
   onConfirm,
   onClose,
   children
 }: ConfirmDialogProps) {
+  const t = useT()
   return (
     <Modal title={title} subtitle={subtitle} onClose={onClose}>
       <div className="confirm__body">{children}</div>
       <div className="confirm__foot">
         <button className="btn btn--ghost" onClick={onClose}>
-          {cancelLabel}
+          {cancelLabel ?? t('dialog.cancel')}
         </button>
         <button
           className={`btn ${danger ? 'btn--danger' : 'btn--primary'}`}
@@ -40,7 +42,7 @@ export default function ConfirmDialog({
           disabled={disabled}
           autoFocus
         >
-          {confirmLabel}
+          {confirmLabel ?? t('dialog.confirm')}
         </button>
       </div>
     </Modal>

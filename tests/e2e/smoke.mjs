@@ -320,7 +320,7 @@ await check('导出到源文件本身 → 拒绝', async () => {
         scope: 'all',
         ids: []
       }),
-    /不能导出到源文件本身/,
+    /EXPORT_TO_SOURCE/,
     '应拒绝覆盖源文件'
   )
 })
@@ -335,7 +335,7 @@ await check('导出到应用进度目录 → 拒绝', async () => {
         scope: 'all',
         ids: []
       }),
-    /进度目录/,
+    /EXPORT_TO_SESSIONS_DIR/,
     '应拒绝写入进度目录'
   )
 })
@@ -529,7 +529,7 @@ console.log('\n新建数据集')
 await check('目标已存在 → 拒绝（绝不覆盖）', async () => {
   await assertThrows(
     () => call('dataset:create', { destPath: sourcePath, format: 'jsonl', columns: [] }),
-    /已经有文件/,
+    /FILE_EXISTS/,
     '应拒绝覆盖已有文件'
   )
 })
@@ -542,7 +542,7 @@ await check('落在应用进度目录 → 拒绝', async () => {
         format: 'jsonl',
         columns: []
       }),
-    /进度目录/,
+    /DEST_IN_SESSIONS_DIR/,
     '应拒绝建在进度目录里'
   )
 })
@@ -699,7 +699,7 @@ await check('源文件追加一行 → sourceChanged，删除标记整体作废'
   assertEqual(second.sourceChanged, true, '应判定源文件变化')
   assertEqual(second.deleted.length, 0, '删除标记应整体作废')
   assert(
-    second.warnings.some((w) => w.includes('删除标记')),
+    second.warnings.some((w) => w.code === 'SESSION_DELETES_CLEARED'),
     `应给出作废提示，实际 warnings=${JSON.stringify(second.warnings)}`
   )
   assertEqual(second.recordCount, 2, '新行数应被读到')

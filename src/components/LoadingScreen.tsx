@@ -1,7 +1,9 @@
 import BrandMark from './BrandMark'
-import { PRODUCT_NAME, PRODUCT_SLOGAN } from '../lib/product'
+import { PRODUCT_NAME, slogan } from '../lib/product'
+import { useT } from '../i18n'
 
 export default function LoadingScreen({ label, progress }: { label: string; progress: number | null }) {
+  const t = useT()
   return (
     <div className="loading">
       <div className="loading__inner">
@@ -12,7 +14,7 @@ export default function LoadingScreen({ label, progress }: { label: string; prog
           <span>
             <span className="brand__name">{PRODUCT_NAME}</span>
             <br />
-            <span className="brand__sub">{PRODUCT_SLOGAN}</span>
+            <span className="brand__sub">{slogan(t)}</span>
           </span>
         </div>
         <div className="spinner" />

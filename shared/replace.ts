@@ -1,21 +1,28 @@
 import { collectStringLeaves, deepEqual, formatPath, getAtPath, pathKey } from './jsonpath'
 import { detectConversation, detectPairs, fieldStringPaths, normalizeRole } from './inspect'
+import type { ErrorCode, Vars } from './errors'
 import type { DataRecord, Json, PatchMap, Path, ReplaceOptions, ReplacePlan, ReplaceSample, ReplaceTarget } from './types'
 
 export function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * 匹配失败的返回值。
+ * error 是错误码而不是文案，detail 带上正则引擎给的原文 —— 那部分跟随操作系统语言，
+ * 我们管不到，只能原样接在翻译好的前缀后面。
+ */
 export interface MatcherResult {
   regex: RegExp | null
-  error: string | null
+  error: ErrorCode | null
+  detail?: Vars
 }
 
 const WORD_GUARD_LEFT = '(?<![\\p{L}\\p{N}_])'
 const WORD_GUARD_RIGHT = '(?![\\p{L}\\p{N}_])'
 
 export function buildMatcher(options: ReplaceOptions): MatcherResult {
-  if (!options.find) return { regex: null, error: '查找内容不能为空' }
+  if (!options.find) return { regex: null, error: 'REPLACE_FIND_EMPTY' }
   let source = options.useRegex ? options.find : escapeRegExp(options.find)
   if (options.wholeWord) source = `${WORD_GUARD_LEFT}(?:${source})${WORD_GUARD_RIGHT}`
   // 全字匹配依赖 \p{L} 与后行断言，必须带 u 标志；其余场景不加 u 以兼容旧式正则写法。
@@ -23,7 +30,7 @@ export function buildMatcher(options: ReplaceOptions): MatcherResult {
   try {
     return { regex: new RegExp(source, flags), error: null }
   } catch (err) {
-    return { regex: null, error: `正则表达式无效：${(err as Error).message}` }
+    return { regex: null, error: 'REPLACE_REGEX_INVALID', detail: { detail: (err as Error).message } }
   }
 }
 
@@ -157,9 +164,9 @@ export function planReplace(
   target: ReplaceTarget,
   options: ReplaceOptions,
   scope: ReplaceScope = { ids: null }
-): { plan: ReplacePlan | null; error: string | null } {
-  const { regex, error } = buildMatcher(options)
-  if (!regex) return { plan: null, error }
+): { plan: ReplacePlan | null; error: ErrorCode | null; detail?: Vars } {
+  const { regex, error, detail } = buildMatcher(options)
+  if (!regex) return { plan: null, error, detail }
 
   const patch: PatchMap = {}
   const inverse: PatchMap = {}
@@ -204,7 +211,8 @@ export function planReplace(
 
   return {
     plan: { matchCount, affectedRecords, samples, patch, inverse },
-    error: null
+    error: null,
+    detail: undefined
   }
 }
 

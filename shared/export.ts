@@ -1,5 +1,6 @@
 import fsp from 'node:fs/promises'
 import { parquetWriteBuffer } from 'hyparquet-writer'
+import { appError } from './errors'
 import type { FlatRow } from './serialize'
 import {
   buildFlatRows,
@@ -37,7 +38,7 @@ export async function writeExport(
   // 没有记录时跳过列校验：空数据集导出成空文件是合理的操作，不是「列配置错了」。
   // 校验的是「要导出的列有没有配好」，一条都没有的时候这个问题不成立。
   const error = records.length > 0 ? validateExportConfig(config) : null
-  if (error) throw new Error(error)
+  if (error) throw appError(error)
 
   if (config.format === 'jsonl' || config.format === 'json') {
     const objects = buildObjects(records, config)

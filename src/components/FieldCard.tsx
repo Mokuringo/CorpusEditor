@@ -5,9 +5,11 @@ import JsonEditor from './JsonEditor'
 import MessagesEditor from './MessagesEditor'
 import PairsEditor from './PairsEditor'
 import { deepEqual, getAtPath, parsePathKey, pathKey } from '@shared/jsonpath'
+import { useT } from '../i18n'
 import { useStore } from '../state/store'
 import type { FieldInfo } from '@shared/inspect'
 import type { DataRecord, Json } from '@shared/types'
+import type { TFunc } from '@shared/locales'
 
 interface Props {
   record: DataRecord
@@ -20,15 +22,15 @@ interface Props {
   revertDisabledReason?: string | null
 }
 
-const KIND_LABEL: Record<FieldInfo['kind']['type'], string> = {
-  messages: '对话',
-  pairs: '对话 · 键即角色',
-  text: '文本',
-  number: '数字',
-  boolean: '布尔',
-  json: '结构',
-  empty: '空'
-}
+const fieldKind = (t: TFunc): Record<FieldInfo['kind']['type'], string> => ({
+  messages: t('field.kind.messages'),
+  pairs: t('field.kind.pairs'),
+  text: t('field.kind.text'),
+  number: t('field.kind.number'),
+  boolean: t('field.kind.boolean'),
+  json: t('field.kind.json'),
+  empty: t('field.kind.empty')
+})
 
 export default function FieldCard({
   record,
@@ -38,6 +40,7 @@ export default function FieldCard({
   readOnly,
   revertDisabledReason
 }: Props) {
+  const t = useT()
   const revertField = useStore((s) => s.revertField)
   const editValue = useStore((s) => s.editValue)
   const { name, kind } = field
@@ -46,13 +49,13 @@ export default function FieldCard({
   const anyModified = [...modifiedKeys].some((key) => parsePathKey(key)[0] === name)
   const selfModified = modifiedKeys.has(fieldKey)
   const originalValue = original ? getAtPath(original, [name]) : undefined
-  const revertTitle = revertDisabledReason ?? (readOnly ? '已确认的记录不能修改，请先退回修改' : '还原为原始内容')
+  const revertTitle = revertDisabledReason ?? (readOnly ? t('field.revert.locked') : t('field.revert.title'))
 
   return (
     <section className={`field${anyModified ? ' field--modified' : ''}${readOnly ? ' field--locked' : ''}`}>
       <header className="field__head">
         <span className="field__name">{name}</span>
-        <span className="field__kind">{KIND_LABEL[kind.type]}</span>
+        <span className="field__kind">{fieldKind(t)[kind.type]}</span>
         <span className="field__spacer" />
         <div className="field__tools">
           {anyModified && (
@@ -63,7 +66,7 @@ export default function FieldCard({
               title={revertTitle}
             >
               <RotateCcw size={11} />
-              还原
+              {t('field.revert')}
             </button>
           )}
         </div>
@@ -94,7 +97,7 @@ export default function FieldCard({
           <AutoTextarea
             value={typeof record.data[name] === 'string' ? (record.data[name] as string) : ''}
             onCommit={(next) => editValue(record.id, [name], next)}
-            placeholder="（空）"
+            placeholder={t('field.placeholder.empty')}
             readOnly={readOnly}
           />
         )}
@@ -103,7 +106,7 @@ export default function FieldCard({
           <AutoTextarea
             value={typeof record.data[name] === 'string' ? (record.data[name] as string) : ''}
             onCommit={(next) => editValue(record.id, [name], next)}
-            placeholder="该字段在所有记录里都是空的"
+            placeholder={t('field.placeholder.emptyField')}
             readOnly={readOnly}
           />
         )}
@@ -144,7 +147,7 @@ export default function FieldCard({
           originalValue !== undefined &&
           !deepEqual(originalValue, record.data[name]) && (
             <div className="field__orig">
-              <span className="field__orig-label">原值</span>
+              <span className="field__orig-label">{t('field.origLabel')}</span>
               {typeof originalValue === 'string' ? originalValue : JSON.stringify(originalValue, null, 2)}
             </div>
           )}

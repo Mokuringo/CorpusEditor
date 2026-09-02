@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CheckSquare, ListChecks, Plus, Search, Square, Undo2, X } from 'lucide-react'
-import { pickSummary } from '../lib/text'
+import { pickSummary, formatCount } from '../lib/text'
+import { useT, useLocale } from '../i18n'
 import { useStore } from '../state/store'
 import { useVisibleIndices } from '../state/visible'
 import { recordStatus } from '@shared/patch'
@@ -9,15 +10,11 @@ import type { FilterMode } from '@shared/types'
 import ConfirmDialog from './ConfirmDialog'
 
 const ROW_HEIGHT = 68
-const FILTERS: Array<{ mode: FilterMode; label: string }> = [
-  { mode: 'all', label: '全部' },
-  { mode: 'pending', label: '待确认' },
-  { mode: 'confirmed', label: '已确认' },
-  { mode: 'unmodified', label: '未修改' },
-  { mode: 'deleted', label: '已删除' }
-]
+const FILTER_MODES: FilterMode[] = ['all', 'pending', 'confirmed', 'unmodified', 'deleted']
 
 export default function RecordList() {
+  const t = useT()
+  const locale = useLocale()
   const records = useStore((s) => s.records)
   const edits = useStore((s) => s.edits)
   const deleted = useStore((s) => s.deleted)
@@ -73,39 +70,39 @@ export default function RecordList() {
           </span>
           <input
             className="input"
-            placeholder="搜索记录内容…"
+            placeholder={t('recordlist.search')}
             value={view.query}
             onChange={(e) => setQuery(e.target.value)}
             spellCheck={false}
           />
           {view.query && (
-            <button className="search__clear" onClick={() => setQuery('')} aria-label="清空搜索">
+            <button className="search__clear" onClick={() => setQuery('')} aria-label={t('recordlist.clear')}>
               <X size={12} />
             </button>
           )}
         </div>
         <div className="filters">
-          {FILTERS.map(({ mode, label }) => (
+          {FILTER_MODES.map((mode) => (
             <button
               key={mode}
               className={`filter-tab${view.filter === mode ? ' filter-tab--on' : ''}`}
               onClick={() => setFilter(mode)}
             >
-              {label}
+              {t(`filter.${mode}`)}
             </button>
           ))}
         </div>
         <div className="sidebar__meta">
           <span>
-            显示 <b className="num">{visible.length.toLocaleString('zh-CN')}</b> /{' '}
-            {records.length.toLocaleString('zh-CN')} 条
+            {t('recordlist.shown')} <b className="num">{formatCount(visible.length, locale)}</b> /{' '}
+            {formatCount(records.length, locale)} {t('statusbar.records')}
           </span>
           <span className="sidebar__meta-actions">
             <button
               className={`iconbtn${multiSelect ? ' iconbtn--on' : ''}`}
               onClick={toggleMultiSelect}
-              title={multiSelect ? '退出多选' : '多选记录以便批量确认'}
-              aria-label={multiSelect ? '退出多选' : '多选记录'}
+              title={multiSelect ? t('recordlist.multiSelect.on') : t('recordlist.multiSelect.off')}
+              aria-label={multiSelect ? t('recordlist.multiSelect.on') : t('recordlist.multiSelect.off')}
             >
               {/* lucide 的 Square 在 24 viewBox 里只占 18/24，同 size 下空心方框的视觉体量
                   天生小于多笔画图标，所以要比同行的 ListChecks 大 2px 才显得一样大；
@@ -123,7 +120,7 @@ export default function RecordList() {
               title="把当前列表里未确认、且未被删除的记录一次性标记为已确认"
             >
               <ListChecks size={13} />
-              确认当前 {pendingInView.toLocaleString('zh-CN')} 条
+              {t('recordlist.confirmCurrent', { n: formatCount(pendingInView, locale) })}
             </button>
           </span>
         </div>
@@ -136,7 +133,7 @@ export default function RecordList() {
       >
         {visible.length === 0 ? (
           <div className="empty" style={{ padding: 'var(--sp-8)' }}>
-            <span>没有符合条件的记录</span>
+            <span>{t('recordlist.noMatch')}</span>
           </div>
         ) : (
           <div className="reclist__inner" style={{ height: `${virtualizer.getTotalSize()}px` }}>
@@ -198,30 +195,34 @@ export default function RecordList() {
                       )}
                     </span>
                   </span>
-                  <span className="recitem__idx num">{(record.index + 1).toLocaleString('zh-CN')}</span>
+                  <span className="recitem__idx num">{formatCount(record.index + 1, locale)}</span>
                   <span className="recitem__body">
-                    <span className="recitem__title">{pickSummary(record.data)}</span>
+                    <span className="recitem__title">{pickSummary(record.data, t)}</span>
                     <span className="recitem__meta">
                       {status === 'new' && (
                         <span className="tag tag--new">
-                          新建{changeCount > 0 ? ` · ${changeCount} 处改动` : ''}
+                          {t('record.newTag')}
+                          {changeCount > 0 ? ` · ${t('record.changes', { n: changeCount })}` : ''}
                         </span>
                       )}
                       {status === 'confirmed' && (
                         <span className="tag tag--confirmed">
-                          已确认{changeCount > 0 ? ' · 已改动' : ''}
+                          {t('record.confirmedTag')}
+                          {changeCount > 0 ? ` · ${t('record.modified')}` : ''}
                         </span>
                       )}
-                      {status === 'pending' && <span className="num">{changeCount} 处改动</span>}
-                      {isDeleted && <span style={{ color: 'var(--danger)' }}>已在导出中排除</span>}
-                      {status === 'unmodified' && <span>未修改</span>}
+                      {status === 'pending' && (
+                        <span className="num">{t('record.changes', { n: changeCount })}</span>
+                      )}
+                      {isDeleted && <span style={{ color: 'var(--danger)' }}>{t('record.excluded')}</span>}
+                      {status === 'unmodified' && <span>{t('record.unmodified')}</span>}
                     </span>
                   </span>
                   {isDeleted && !multiSelect && (
                     <button
                       className="recitem__restore"
-                      title="恢复这条记录，导出时不再跳过它"
-                      aria-label={`恢复第 ${record.index + 1} 条`}
+                      title={t('record.restore.title')}
+                      aria-label={t('record.restoreAria', { n: record.index + 1 })}
                       onClick={(e) => {
                         // 行本身是个大点击区，不拦住会顺带把选中项也切了
                         e.stopPropagation()
@@ -229,7 +230,7 @@ export default function RecordList() {
                       }}
                     >
                       <Undo2 size={12} />
-                      还原
+                      {t('record.restore')}
                     </button>
                   )}
                 </div>
@@ -242,7 +243,7 @@ export default function RecordList() {
       {multiSelect ? (
         <div className="pickbar">
           <span>
-            已选 <b className="num">{selected.size.toLocaleString('zh-CN')}</b> 条
+            {t('recordlist.selected', { n: formatCount(selected.size, locale) })}
           </span>
           <span className="pickbar__actions">
             <button
@@ -252,27 +253,27 @@ export default function RecordList() {
               }
               disabled={selected.size === 0}
             >
-              确认所选
+              {t('recordlist.confirmSelected')}
             </button>
             <button className="btn btn--ghost btn--sm" onClick={clearSelected} disabled={selected.size === 0}>
-              清空
+              {t('recordlist.clearSel')}
             </button>
             <button className="btn btn--ghost btn--sm" onClick={toggleMultiSelect}>
-              退出
+              {t('recordlist.exit')}
             </button>
           </span>
         </div>
       ) : (
         <button className="reclist__append" onClick={() => openNewRecord(null)}>
           <Plus size={13} />
-          新增到末尾
+          {t('recordlist.append')}
         </button>
       )}
 
       {askBatch && (
         <ConfirmDialog
-          title="批量确认"
-          confirmLabel="确认这些记录"
+          title={t('recordlist.batch.title')}
+          confirmLabel={t('recordlist.batch.confirm')}
           onClose={() => setAskBatch(false)}
           onConfirm={() => {
             confirmMany(visible)
@@ -280,12 +281,9 @@ export default function RecordList() {
           }}
         >
           <p>
-            将把当前列表里 <b className="num">{pendingInView.toLocaleString('zh-CN')}</b> 条未确认的记录
-            标记为<b>已确认</b>。
+            {t('recordlist.batch.desc', { n: formatCount(pendingInView, locale) })}
           </p>
-          <p className="muted">
-            已删除的记录不计入上面的数字，也不会被确认。执行后可以按 Ctrl+Z 一次性全部退回。
-          </p>
+          <p className="muted">{t('recordlist.batch.note')}</p>
         </ConfirmDialog>
       )}
     </aside>

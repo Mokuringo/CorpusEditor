@@ -1,7 +1,7 @@
 {
   "name": "corpuseditor",
   "productName": "CorpusEditor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Desktop editor for LLM instruction-tuning datasets — read-only import, per-record editing, batch replace, resumable progress",
   "main": "./out/main/index.js",
   "scripts": {
@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "smoke": "electron-vite build && node tests/e2e/smoke.mjs",
     "dist": "electron-vite build && electron-builder",
-    "gui": "electron-vite build && node tests/gui/run.mjs"
+    "gui": "electron-vite build && node tests/gui/run.mjs",
+    "shoot:docs": "node scripts/shoot-docs.mjs"
   },
   "keywords": [
     "llm",

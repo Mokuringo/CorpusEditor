@@ -2,15 +2,10 @@ import { useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, Braces, Plus, Trash2, Wrench } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '../state/store'
+import { useT } from '../i18n'
 import { blankValue, newTemplateId, templateGroups, templateToData } from '@shared/templates'
 import { BUILTIN_TEMPLATES } from '@shared/types'
 import type { Json, RecordTemplate, TemplateFieldKind } from '@shared/types'
-
-const KIND_LABEL: Record<TemplateFieldKind, string> = {
-  text: '文本',
-  messages: '对话',
-  json: '结构'
-}
 
 /** 对话类字段的表单模式只给一个输入框（填第一轮的内容），进去再细化。 */
 function formSeed(field: RecordTemplate['fields'][number], text: string): Json {
@@ -36,6 +31,7 @@ function formSeed(field: RecordTemplate['fields'][number], text: string): Json {
  * 模板决定字段骨架，不决定数据内容 —— 新建的记录一律是空的，由用户填。
  */
 export default function NewRecordDialog() {
+  const t = useT()
   const close = useStore((s) => s.closeNewRecord)
   const at = useStore((s) => s.newRecordAt)
   const addRecord = useStore((s) => s.addRecord)
@@ -45,6 +41,12 @@ export default function NewRecordDialog() {
   const saveTemplates = useStore((s) => s.saveTemplates)
   const toast = useStore((s) => s.toast)
 
+  const kindLabel: Record<TemplateFieldKind, string> = {
+    text: t('template.kind.text'),
+    messages: t('template.kind.messages'),
+    json: t('template.kind.json')
+  }
+
   const custom = settings?.recordTemplates ?? []
 
   const datasetFields: RecordTemplate['fields'] = fields.map((f) => ({
@@ -53,7 +55,7 @@ export default function NewRecordDialog() {
     // 数据集里如果用的是 from / value 这类键名，新建的记录要跟着用，别写成 role / content
     ...(f.kind.type === 'messages' ? { roleKey: f.kind.roleKey, contentKey: f.kind.contentKey } : {})
   }))
-  const datasetTemplate: RecordTemplate = { id: '__dataset__', name: '跟随当前数据集字段', fields: datasetFields }
+  const datasetTemplate: RecordTemplate = { id: '__dataset__', name: t('newrecord.followDataset'), fields: datasetFields }
 
   const options = useMemo(
     () => (datasetFields.length > 0 ? [datasetTemplate, ...templateGroups(custom).flatMap((g) => g.items)] : templateGroups(custom).flatMap((g) => g.items)),
@@ -61,7 +63,7 @@ export default function NewRecordDialog() {
     [custom, fields]
   )
   const [templateId, setTemplateId] = useState(options[0]?.id ?? 'blank')
-  const template = options.find((t) => t.id === templateId) ?? options[0]
+  const template = options.find((t2) => t2.id === templateId) ?? options[0]
 
   const [jsonMode, setJsonMode] = useState(false)
   const [draft, setDraft] = useState(() => JSON.stringify(templateToData(template?.fields ?? []), null, 2))
@@ -71,7 +73,7 @@ export default function NewRecordDialog() {
 
   const pick = (id: string) => {
     setTemplateId(id)
-    const next = options.find((t) => t.id === id)
+    const next = options.find((t2) => t2.id === id)
     const data = templateToData(next?.fields ?? [])
     setDraft(JSON.stringify(data, null, 2))
     setValues({})
@@ -81,7 +83,7 @@ export default function NewRecordDialog() {
     if (!editing) return
     const name = editing.name.trim()
     if (!name) {
-      toast('给模板起个名字', 'error')
+      toast(t('newrecord.toast.nameRequired'), 'error')
       return
     }
     const cleaned: RecordTemplate = {
@@ -92,10 +94,10 @@ export default function NewRecordDialog() {
         .filter((f) => f.name.length > 0)
     }
     if (cleaned.fields.length === 0) {
-      toast('模板至少要有一个字段', 'error')
+      toast(t('newrecord.toast.needField'), 'error')
       return
     }
-    const rest = custom.filter((t) => t.id !== cleaned.id)
+    const rest = custom.filter((tpl) => tpl.id !== cleaned.id)
     // id 要保证唯一：裸 Date.now() 在同一毫秒内连建两个模板会撞车，
     // 下拉里就会出现两个看起来一样、删掉一个另一个也跟着没的模板。
     const stored: RecordTemplate = { ...cleaned, id: cleaned.id || newTemplateId(custom) }
@@ -104,7 +106,7 @@ export default function NewRecordDialog() {
     setTemplateId(stored.id)
     setDraft(JSON.stringify(templateToData(stored.fields), null, 2))
     setValues({})
-    toast(`已保存模板「${stored.name}」`, 'success')
+    toast(t('newrecord.toast.saved', { name: stored.name }), 'success')
   }
 
   const submit = () => {
@@ -113,11 +115,11 @@ export default function NewRecordDialog() {
       try {
         parsed = JSON.parse(draft)
       } catch (err) {
-        toast(`JSON 无效：${(err as Error).message}`, 'error')
+        toast(t('newrecord.toast.jsonInvalid', { detail: (err as Error).message }), 'error')
         return
       }
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        toast('整条记录必须是一个 JSON 对象', 'error')
+        toast(t('newrecord.toast.mustBeObject'), 'error')
         return
       }
       addRecord(parsed as Record<string, Json>, at ?? records.length)
@@ -134,7 +136,7 @@ export default function NewRecordDialog() {
         try {
           JSON.parse(text)
         } catch {
-          toast(`字段 ${name} 不是合法 JSON`, 'error')
+          toast(t('newrecord.toast.fieldJsonInvalid', { name }), 'error')
           return
         }
       }
@@ -146,27 +148,27 @@ export default function NewRecordDialog() {
 
   return (
     <Modal
-      title="新增一条记录"
-      subtitle={at === null ? '追加到末尾' : `插入到第 ${at + 1} 条之前`}
+      title={t('newrecord.title')}
+      subtitle={at === null ? t('newrecord.subtitleEnd') : t('newrecord.subtitleAt', { n: at + 1 })}
       onClose={close}
       footer={
         <>
           <span className="muted" style={{ fontSize: 'var(--fs-caption)' }}>
-            新建的记录会标上「新建」徽章，可正常编辑、确认、导出。
+            {t('newrecord.note')}
           </span>
           <span style={{ flex: 1 }} />
           <button className="btn" onClick={close}>
-            取消
+            {t('dialog.cancel')}
           </button>
           <button className="btn btn--primary" onClick={submit}>
             <Plus size={12} />
-            新增
+            {t('newrecord.add')}
           </button>
         </>
       }
     >
       <div className="form-grid">
-        <span className="form-grid__label">字段模板</span>
+        <span className="form-grid__label">{t('newrecord.template')}</span>
         <div className="form-row">
           <select className="select" value={templateId} onChange={(e) => pick(e.target.value)}>
             {datasetFields.length > 0 && (
@@ -176,11 +178,11 @@ export default function NewRecordDialog() {
               </option>
             )}
             {templateGroups(custom).map((group) => (
-              <optgroup key={group.label} label={group.label}>
-                {group.items.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                    {t.fields.length > 0 ? ` · ${t.fields.map((f) => f.name).join(' / ')}` : ''}
+              <optgroup key={group.id} label={t(`template.group.${group.id}`)}>
+                {group.items.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name}
+                    {tpl.fields.length > 0 ? ` · ${tpl.fields.map((f) => f.name).join(' / ')}` : ''}
                   </option>
                 ))}
               </optgroup>
@@ -192,10 +194,10 @@ export default function NewRecordDialog() {
               setJsonMode((v) => !v)
               if (!jsonMode) setDraft(JSON.stringify(templateToData(template?.fields ?? []), null, 2))
             }}
-            title="直接粘贴一段 JSON"
+            title={t('newrecord.jsonMode')}
           >
             <Braces size={11} />
-            {jsonMode ? '表单模式' : 'JSON 模式'}
+            {jsonMode ? t('newrecord.formMode') : t('newrecord.jsonMode')}
           </button>
           <span style={{ flex: 1 }} />
           {template && template.id !== '__dataset__' && !template.builtin && (
@@ -203,15 +205,15 @@ export default function NewRecordDialog() {
               <button
                 className="btn btn--sm"
                 onClick={() => setEditing({ ...template })}
-                title="编辑这个自定义模板"
+                title={t('newrecord.editTemplate')}
               >
                 <Wrench size={11} />
-                编辑模板
+                {t('newrecord.editTemplate')}
               </button>
               <button
                 className="btn btn--sm btn--danger"
                 onClick={() => {
-                  saveTemplates(custom.filter((t) => t.id !== template.id))
+                  saveTemplates(custom.filter((tpl) => tpl.id !== template.id))
                   // 必须显式落到内置模板的第一项：options 是本次渲染的旧闭包，
                   // 里面还留着刚删掉的那个，pick(options[0]) 会选中一个已经不存在的 id，
                   // 重渲染后静默掉回「空白」。
@@ -220,10 +222,10 @@ export default function NewRecordDialog() {
                   setDraft(JSON.stringify(templateToData(fallback.fields), null, 2))
                   setValues({})
                 }}
-                title="删除这个自定义模板"
+                title={t('newrecord.deleteTemplate')}
               >
                 <Trash2 size={11} />
-                删除
+                {t('newrecord.deleteTemplate')}
               </button>
             </>
           )}
@@ -236,10 +238,10 @@ export default function NewRecordDialog() {
                 fields: [{ name: 'instruction', kind: 'text' }]
               })
             }
-            title="新建一个自定义模板"
+            title={t('newrecord.newTemplate')}
           >
             <Plus size={11} />
-            新建模板
+            {t('newrecord.newTemplate')}
           </button>
         </div>
       </div>
@@ -250,16 +252,16 @@ export default function NewRecordDialog() {
             <input
               className="input"
               value={editing.name}
-              placeholder="模板名称"
+              placeholder={t('newrecord.templateName')}
               onChange={(e) => setEditing({ ...editing, name: e.target.value })}
               spellCheck={false}
             />
             <span style={{ flex: 1 }} />
             <button className="btn btn--sm" onClick={() => setEditing(null)}>
-              取消
+              {t('dialog.cancel')}
             </button>
             <button className="btn btn--sm btn--primary" onClick={saveEditing}>
-              保存模板
+              {t('newrecord.saveTemplate')}
             </button>
           </div>
           <div className="tpledit__list">
@@ -268,7 +270,7 @@ export default function NewRecordDialog() {
                 <input
                   className="input mono"
                   value={field.name}
-                  placeholder="字段名"
+                  placeholder={t('newrecord.fieldName')}
                   onChange={(e) =>
                     setEditing({
                       ...editing,
@@ -289,14 +291,14 @@ export default function NewRecordDialog() {
                     })
                   }
                 >
-                  <option value="text">文本</option>
-                  <option value="messages">对话</option>
-                  <option value="json">结构</option>
+                  <option value="text">{t('template.kind.text')}</option>
+                  <option value="messages">{t('template.kind.messages')}</option>
+                  <option value="json">{t('template.kind.json')}</option>
                 </select>
                 <input
                   className="input"
                   value={field.default === undefined ? '' : String(field.default)}
-                  placeholder="默认值（可留空）"
+                  placeholder={t('newrecord.defaultValue')}
                   onChange={(e) =>
                     setEditing({
                       ...editing,
@@ -309,7 +311,7 @@ export default function NewRecordDialog() {
                 />
                 <button
                   className="iconbtn"
-                  title="上移"
+                  title={t('newrecord.moveUp')}
                   disabled={i === 0}
                   onClick={() => {
                     const next = [...editing.fields]
@@ -321,7 +323,7 @@ export default function NewRecordDialog() {
                 </button>
                 <button
                   className="iconbtn"
-                  title="下移"
+                  title={t('newrecord.moveDown')}
                   disabled={i === editing.fields.length - 1}
                   onClick={() => {
                     const next = [...editing.fields]
@@ -333,7 +335,7 @@ export default function NewRecordDialog() {
                 </button>
                 <button
                   className="iconbtn"
-                  title="删除字段"
+                  title={t('newrecord.delField')}
                   onClick={() => setEditing({ ...editing, fields: editing.fields.filter((_, j) => j !== i) })}
                 >
                   <Trash2 size={12} />
@@ -348,7 +350,7 @@ export default function NewRecordDialog() {
             }
           >
             <Plus size={11} />
-            加一个字段
+            {t('newrecord.addField')}
           </button>
         </div>
       )}
@@ -366,20 +368,24 @@ export default function NewRecordDialog() {
       ) : (
         <div className="newrec__fields">
           {(template?.fields ?? []).length === 0 ? (
-            <p className="muted">
-              「空白」模板没有预设字段。切到 JSON 模式直接粘贴内容，或换一个模板。
-            </p>
+            <p className="muted">{t('newrecord.blankNote')}</p>
           ) : (
             (template?.fields ?? []).map((field) => (
               <label className="newrec__field" key={field.name}>
                 <span className="newrec__field-name">
                   {field.name}
-                  <span className="newrec__field-kind">{KIND_LABEL[field.kind]}</span>
+                  <span className="newrec__field-kind">{kindLabel[field.kind]}</span>
                 </span>
                 <textarea
                   className="textarea"
                   rows={field.kind === 'text' ? 3 : 4}
-                  placeholder={field.kind === 'json' ? '{}' : field.kind === 'messages' ? '第一轮 user 的内容' : '（留空）'}
+                  placeholder={
+                    field.kind === 'json'
+                      ? t('newrecord.jsonPlaceholder')
+                      : field.kind === 'messages'
+                        ? t('newrecord.messagesPlaceholder')
+                        : t('newrecord.emptyPlaceholder')
+                  }
                   value={
                     values[field.name] ??
                     (field.default !== undefined

@@ -7,6 +7,7 @@ import { useStore } from '../state/store'
 import { buildMatcher, planReplace } from '@shared/replace'
 import { recordStatus } from '@shared/patch'
 import { formatCount } from '../lib/text'
+import { useT, useLocale } from '../i18n'
 import type { ReplaceOptions, ReplacePlan, ReplaceTarget } from '@shared/types'
 
 type ScopeValue = 'all' | 'filtered' | 'current'
@@ -15,14 +16,9 @@ type StatusValue = 'unmodified' | 'pending' | 'confirmed' | 'deleted'
 
 const AUTO_PREVIEW_LIMIT = 50_000
 
-const STATUS_CHIPS: Array<{ value: StatusValue; label: string; hint: string }> = [
-  { value: 'unmodified', label: '未修改', hint: '没动过的记录' },
-  { value: 'pending', label: '待确认', hint: '改过但还没定' },
-  { value: 'confirmed', label: '已确认', hint: '改完会退回待确认，需要重新过一遍' },
-  { value: 'deleted', label: '已删除', hint: '只改补丁，不会把记录复活' }
-]
-
 export default function ReplaceDialog() {
+  const t = useT()
+  const locale = useLocale()
   const open = useStore((s) => s.replaceOpen)
   const close = useStore((s) => s.closeReplace)
   const records = useStore((s) => s.records)
@@ -80,6 +76,13 @@ export default function ReplaceDialog() {
   }, [fields])
 
   const target = targetOptions.find((o) => o.value === targetValue)?.target ?? { type: 'everything' as const }
+
+  const statusChips: Array<{ value: StatusValue; label: string; hint: string }> = [
+    { value: 'unmodified', label: t('replace.status.unmodified'), hint: t('replace.status.unmodified.hint') },
+    { value: 'pending', label: t('replace.status.pending'), hint: t('replace.status.pending.hint') },
+    { value: 'confirmed', label: t('replace.status.confirmed'), hint: t('replace.status.confirmed.hint') },
+    { value: 'deleted', label: t('replace.status.deleted'), hint: t('replace.status.deleted.hint') }
+  ]
 
   const visibleIds = useMemo(
     () =>
@@ -182,9 +185,12 @@ export default function ReplaceDialog() {
     : 0
 
   const runApply = () => {
-    applyReplace(plan as ReplacePlan, '批量替换')
+    applyReplace(plan as ReplacePlan, t('replace.batchLabel'))
     toast(
-      `已替换 ${formatCount((plan as ReplacePlan).matchCount)} 处，影响 ${formatCount((plan as ReplacePlan).affectedRecords)} 条记录 · 可用 Ctrl+Z 撤销`,
+      t('replace.done', {
+        n: formatCount((plan as ReplacePlan).matchCount, locale),
+        records: formatCount((plan as ReplacePlan).affectedRecords, locale)
+      }),
       'success'
     )
     setPlan(null)
@@ -198,53 +204,53 @@ export default function ReplaceDialog() {
 
   return (
     <Modal
-      title="查找与替换"
-      subtitle={`作用于 ${formatCount(scopeCount)} 条记录`}
+      title={t('replace.title')}
+      subtitle={t('replace.subtitle', { n: formatCount(scopeCount, locale) })}
       onClose={close}
       footer={
         <>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-            替换会写入工作区，原文件不受影响；一次替换算作一步，可整体撤销。
+            {t('replace.footerNote')}
           </span>
           <span style={{ flex: 1 }} />
           <button className="btn" onClick={close}>
-            关闭
+            {t('modal.close')}
           </button>
           <button className="btn btn--primary" onClick={apply} disabled={!plan || plan.matchCount === 0}>
             <Wand2 size={13} />
-            替换 {plan && plan.matchCount > 0 ? formatCount(plan.matchCount) : ''} 处
+            {t('replace.apply', { n: plan && plan.matchCount > 0 ? formatCount(plan.matchCount, locale) : '' })}
           </button>
         </>
       }
     >
       <div className="form-grid">
         <label className="form-grid__label" htmlFor="rp-find">
-          查找
+          {t('replace.find')}
         </label>
         <input
           id="rp-find"
           className="input mono"
           value={find}
           autoFocus
-          placeholder="要查找的文本或正则表达式"
+          placeholder={t('replace.findPlaceholder')}
           onChange={(e) => setFind(e.target.value)}
           spellCheck={false}
         />
 
         <label className="form-grid__label" htmlFor="rp-replace">
-          替换为
+          {t('replace.replaceWith')}
         </label>
         <input
           id="rp-replace"
           className="input mono"
           value={replaceWith}
-          placeholder="留空表示删除匹配到的内容"
+          placeholder={t('replace.replacePlaceholder')}
           onChange={(e) => setReplaceWith(e.target.value)}
           spellCheck={false}
         />
 
         <label className="form-grid__label" htmlFor="rp-target">
-          作用字段
+          {t('replace.target')}
         </label>
         <select
           id="rp-target"
@@ -260,7 +266,7 @@ export default function ReplaceDialog() {
         </select>
 
         <label className="form-grid__label" htmlFor="rp-scope">
-          作用范围
+          {t('replace.scope')}
         </label>
         <select
           id="rp-scope"
@@ -268,14 +274,14 @@ export default function ReplaceDialog() {
           value={scopeValue}
           onChange={(e) => setScopeValue(e.target.value as ScopeValue)}
         >
-          <option value="all">全部记录（{formatCount(records.length)} 条）</option>
-          <option value="filtered">当前筛选结果（{formatCount(visibleIds.size)} 条）</option>
-          <option value="current">仅当前这条记录</option>
+          <option value="all">{t('replace.scope.all', { n: formatCount(records.length, locale) })}</option>
+          <option value="filtered">{t('replace.scope.filtered', { n: formatCount(visibleIds.size, locale) })}</option>
+          <option value="current">{t('replace.scope.current')}</option>
         </select>
 
-        <span className="form-grid__label">记录状态</span>
+        <span className="form-grid__label">{t('replace.status')}</span>
         <div className="chip-row">
-          {STATUS_CHIPS.map((chip) => {
+          {statusChips.map((chip) => {
             const on = statusSet.has(chip.value)
             return (
               <button
@@ -296,11 +302,11 @@ export default function ReplaceDialog() {
             )
           })}
           <span className="chip-row__hint">
-            命中 {formatCount(scopeCount)} 条
+            {t('replace.hitCount', { n: formatCount(scopeCount, locale) })}
             {hitConfirmed > 0 && (
               <>
                 {' · '}
-                <b style={{ color: 'var(--clay)' }}>含 {formatCount(hitConfirmed)} 条已确认</b>
+                <b style={{ color: 'var(--clay)' }}>{t('replace.hitConfirmed', { n: formatCount(hitConfirmed, locale) })}</b>
               </>
             )}
           </span>
@@ -310,26 +316,26 @@ export default function ReplaceDialog() {
       <div className="options-row">
         <label className="checkbox">
           <input type="checkbox" checked={caseSensitive} onChange={(e) => setCaseSensitive(e.target.checked)} />
-          区分大小写
+          {t('replace.caseSensitive')}
         </label>
         <label className="checkbox">
           <input type="checkbox" checked={wholeWord} onChange={(e) => setWholeWord(e.target.checked)} />
-          全字匹配
+          {t('replace.wholeWord')}
         </label>
         <label className="checkbox">
           <input type="checkbox" checked={useRegex} onChange={(e) => setUseRegex(e.target.checked)} />
-          正则表达式
+          {t('replace.regex')}
         </label>
         <span style={{ flex: 1 }} />
         <button className="btn btn--sm" onClick={runPreview} disabled={!find || computing}>
           <Search size={11} />
-          {computing ? '计算中…' : '预览'}
+          {computing ? t('replace.computing') : t('replace.preview')}
         </button>
       </div>
 
       {error && (
         <div className="result-box">
-          <div className="result-box__head result-box__head--danger">无法执行</div>
+          <div className="result-box__head result-box__head--danger">{t('replace.cannotRun')}</div>
           <div className="sample">
             <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)' }}>{error}</span>
           </div>
@@ -341,8 +347,11 @@ export default function ReplaceDialog() {
           <div className={`result-box__head${plan.matchCount === 0 ? ' result-box__head--warn' : ''}`}>
             <Replace size={13} />
             {plan.matchCount === 0
-              ? '没有匹配到任何内容'
-              : `匹配 ${formatCount(plan.matchCount)} 处，涉及 ${formatCount(plan.affectedRecords)} 条记录`}
+              ? t('replace.noMatch')
+              : t('replace.matched', {
+                  n: formatCount(plan.matchCount, locale),
+                  records: formatCount(plan.affectedRecords, locale)
+                })}
           </div>
           {plan.samples.length > 0 && (
             <div className="samples">
@@ -358,7 +367,7 @@ export default function ReplaceDialog() {
               {plan.matchCount > plan.samples.length && (
                 <div className="sample">
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-                    仅展示前 {plan.samples.length} 处示例
+                    {t('replace.moreSamples', { n: plan.samples.length })}
                   </span>
                 </div>
               )}
@@ -369,16 +378,14 @@ export default function ReplaceDialog() {
 
       {!error && !plan && find && records.length > AUTO_PREVIEW_LIMIT && (
         <div className="result-box">
-          <div className="result-box__head result-box__head--warn">
-            数据量较大，点击「预览」查看匹配结果
-          </div>
+          <div className="result-box__head result-box__head--warn">{t('replace.largeData')}</div>
         </div>
       )}
 
       {askConfirmed && (
         <ConfirmDialog
-          title="这次替换会改动已确认的记录"
-          confirmLabel="仍然执行"
+          title={t('replace.confirmTitle')}
+          confirmLabel={t('replace.confirmStill')}
           danger
           onClose={() => setAskConfirmed(false)}
           onConfirm={() => {
@@ -387,9 +394,9 @@ export default function ReplaceDialog() {
           }}
         >
           <p>
-            这次替换会改动 <b className="num">{formatCount(hitConfirmed)}</b> 条<b>已确认</b>的记录。
+            {t('replace.confirmBody', { n: formatCount(hitConfirmed, locale) })}
           </p>
-          <p className="muted">执行后它们会退回「待确认」，需要重新过一遍。可用 Ctrl+Z 撤销。</p>
+          <p className="muted">{t('replace.confirmHint')}</p>
         </ConfirmDialog>
       )}
     </Modal>

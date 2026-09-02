@@ -204,25 +204,25 @@ describe('字段映射', () => {
 
 describe('配置校验', () => {
   it('至少保留一列', () => {
-    expect(validateExportConfig(config({ columns: [] }))).toBe('至少要保留一列')
+    expect(validateExportConfig(config({ columns: [] }))).toBe('EXPORT_NO_COLUMN')
     expect(
       validateExportConfig(config({ columns: [{ id: 'x', label: 'a', path: ['instruction'], enabled: false }] }))
-    ).toBe('至少要保留一列')
+    ).toBe('EXPORT_NO_COLUMN')
   })
 
   it('列名不能为空或重复', () => {
     expect(validateExportConfig(config({ columns: [{ id: 'x', label: ' ', path: null, enabled: true }] }))).toBe(
-      '列名不能为空'
+      'EXPORT_COLUMN_EMPTY'
     )
     const dup = [
       { id: 'a', label: 'same', path: ['instruction'], enabled: true },
       { id: 'b', label: 'same', path: ['output'], enabled: true }
     ]
-    expect(validateExportConfig(config({ columns: dup }))).toBe('列名不能重复')
+    expect(validateExportConfig(config({ columns: dup }))).toBe('EXPORT_COLUMN_DUPLICATE')
   })
 
   it('CSV 分隔符不能为空', () => {
-    expect(validateExportConfig(config({ format: 'csv', delimiter: '' }))).toBe('CSV 分隔符不能为空')
+    expect(validateExportConfig(config({ format: 'csv', delimiter: '' }))).toBe('EXPORT_DELIMITER_EMPTY')
   })
 
   it('合法配置通过校验', () => {
@@ -288,7 +288,7 @@ describe('写文件', () => {
 
   it('非法配置不会写文件', async () => {
     const dest = await writeFile('invalid.jsonl', '')
-    await expect(writeExport(records(), config({ columns: [] }), dest)).rejects.toThrow('至少要保留一列')
+    await expect(writeExport(records(), config({ columns: [] }), dest)).rejects.toThrow('CE:EXPORT_NO_COLUMN')
   })
 
   it('返回导出的字节数', async () => {
